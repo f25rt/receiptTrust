@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +50,7 @@ public class DebtService {
      * owner are excluded. Idempotency is enforced by the finalized flag.
      */
     @Transactional
-    public List<Debt> finalizeReceipt(User owner, Long receiptId) {
+    public List<Debt> finalizeReceipt(User owner, Long receiptId, LocalDate customDueDate) {
         Receipt receipt = receiptService.requireOwned(owner, receiptId);
         if (receipt.isFinalized()) {
             throw new ApiExceptions.ConflictException("Receipt already finalized");
@@ -57,32 +58,36 @@ public class DebtService {
 
         List<ItemAssignment> assignments = assignmentRepository.findByReceipt(receipt);
 
-        // Aggregate by debtor (exclude the owner's own shares), preserving order.
-        Map<Long, DebtorAccumulator> byDebtor = new LinkedHashMap<>();
+        // Aggregate by debtor key (registered user or label), excluding the owner's
+        // own shares. Repeated assignments to the same debtor accumulate here.
+        Map<String, DebtorAccumulator> byDebtor = new LinkedHashMap<>();
         for (ItemAssignment a : assignments) {
             User assignee = a.getAssignee();
-            if (assignee.getId().equals(owner.getId())) {
+            if (assignee != null && assignee.getId().equals(owner.getId())) {
                 continue;
             }
-            byDebtor.computeIfAbsent(assignee.getId(), k -> new DebtorAccumulator(assignee))
+            byDebtor.computeIfAbsent(a.debtorKey(), k -> new DebtorAccumulator(assignee, a.getAssigneeLabel()))
                     .add(a.getReceiptItem().getName(), a.getShareAmount());
         }
 
+        LocalDate dueDate = customDueDate != null
+                ? customDueDate
+                : receipt.getPurchaseDate().plusDays(debtProperties.getDefaultTermDays());
+
         List<Debt> created = new ArrayList<>();
         for (DebtorAccumulator acc : byDebtor.values()) {
-            Debt debt = new Debt(
-                    owner,
-                    acc.debtor,
-                    receipt,
-                    receipt.getPurchaseDate(),
-                    receipt.getPurchaseDate().plusDays(debtProperties.getDefaultTermDays()),
-                    acc.total);
+            Debt debt = acc.debtor != null
+                    ? new Debt(owner, acc.debtor, receipt, receipt.getPurchaseDate(), dueDate, acc.total)
+                    : new Debt(owner, acc.label, receipt, receipt.getPurchaseDate(), dueDate, acc.total);
             acc.items.forEach((name, amount) -> debt.addItem(new DebtItem(debt, name, amount)));
             created.add(debtRepository.save(debt));
 
-            notificationService.notify(acc.debtor, NotificationType.DEBT_CREATED,
-                    "You owe " + owner.getUsername() + " " + acc.total
-                            + " for receipt at " + receipt.getStoreName());
+            // Only registered debtors get an in-app notification; labels have no account.
+            if (acc.debtor != null) {
+                notificationService.notify(acc.debtor, NotificationType.DEBT_CREATED,
+                        "You owe " + owner.getUsername() + " " + acc.total
+                                + " for receipt at " + receipt.getStoreName());
+            }
         }
 
         receipt.setFinalized(true);
@@ -95,9 +100,9 @@ public class DebtService {
      * transaction, avoiding lazy-loading issues in the controller layer.
      */
     @Transactional
-    public List<DebtDtos.DebtSummary> finalizeReceiptSummaries(User owner, Long receiptId) {
-        return finalizeReceipt(owner, receiptId).stream()
-                .map(d -> new DebtDtos.DebtSummary(d.getId(), d.getDebtor().getUsername(),
+    public List<DebtDtos.DebtSummary> finalizeReceiptSummaries(User owner, Long receiptId, LocalDate dueDate) {
+        return finalizeReceipt(owner, receiptId, dueDate).stream()
+                .map(d -> new DebtDtos.DebtSummary(d.getId(), d.debtorDisplayName(), d.isLabelDebt(),
                         d.getOutstandingAmount(), d.getOriginalAmount(), d.getStatus(), d.getDueDate()))
                 .toList();
     }
@@ -109,9 +114,9 @@ public class DebtService {
 
     public Debt requireParticipant(User user, Long debtId) {
         Debt debt = require(debtId);
-        boolean participant = debt.getCreditor().getId().equals(user.getId())
-                || debt.getDebtor().getId().equals(user.getId());
-        if (!participant) {
+        boolean isCreditor = debt.getCreditor().getId().equals(user.getId());
+        boolean isDebtor = debt.getDebtor() != null && debt.getDebtor().getId().equals(user.getId());
+        if (!isCreditor && !isDebtor) {
             throw new ApiExceptions.ForbiddenException("Not a participant in this debt");
         }
         return debt;
@@ -121,20 +126,23 @@ public class DebtService {
     @Transactional(readOnly = true)
     public DebtDtos.DebtSummary summaryFor(User user, Long debtId) {
         Debt debt = requireParticipant(user, debtId);
-        String counterparty = debt.getCreditor().getId().equals(user.getId())
-                ? debt.getDebtor().getUsername() : debt.getCreditor().getUsername();
-        return new DebtDtos.DebtSummary(debt.getId(), counterparty, debt.getOutstandingAmount(),
-                debt.getOriginalAmount(), debt.getStatus(), debt.getDueDate());
+        boolean isCreditor = debt.getCreditor().getId().equals(user.getId());
+        String counterparty = isCreditor ? debt.debtorDisplayName() : debt.getCreditor().getUsername();
+        boolean counterpartyIsLabel = isCreditor && debt.isLabelDebt();
+        return new DebtDtos.DebtSummary(debt.getId(), counterparty, counterpartyIsLabel,
+                debt.getOutstandingAmount(), debt.getOriginalAmount(), debt.getStatus(), debt.getDueDate());
     }
 
-    /** Accumulates a single debtor's item shares and running total. */
+    /** Accumulates a single debtor's (user or label) item shares and running total. */
     private static final class DebtorAccumulator {
         private final User debtor;
+        private final String label;
         private final Map<String, BigDecimal> items = new LinkedHashMap<>();
         private BigDecimal total = BigDecimal.ZERO;
 
-        DebtorAccumulator(User debtor) {
+        DebtorAccumulator(User debtor, String label) {
             this.debtor = debtor;
+            this.label = label;
         }
 
         void add(String itemName, BigDecimal amount) {

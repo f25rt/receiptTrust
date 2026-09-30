@@ -19,8 +19,8 @@ Full requirements, design, and task plan live in
 
 ## Prerequisites
 
-- JDK 21. A copy of Temurin 21 is bundled under `.tools/` (git-ignored) and used by the
-  helper scripts. If you have your own JDK 21, set `JAVA_HOME` to it instead.
+- JDK 21 (e.g. Eclipse Temurin 21). `build.ps1` auto-detects a Temurin JDK 21 under the
+  standard Adoptium install locations, or honors `JAVA_HOME` if it already points at a JDK 21.
 - Maven (the repo was built with 3.8.6).
 - PostgreSQL 16 for running the app (tests use in-memory H2, no DB needed). The easiest way is
   the bundled Docker setup (see below).

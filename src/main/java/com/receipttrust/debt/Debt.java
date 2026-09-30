@@ -28,9 +28,14 @@ public class Debt extends BaseEntity {
     @JoinColumn(name = "creditor_id", nullable = false)
     private User creditor;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "debtor_id", nullable = false)
+    /** Registered debtor, or null when this is a label (non-registered) debt. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "debtor_id")
     private User debtor;
+
+    /** Free-text debtor name for non-registered people, or null. */
+    @Column(name = "debtor_label")
+    private String debtorLabel;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "receipt_id", nullable = false)
@@ -75,6 +80,25 @@ public class Debt extends BaseEntity {
         this.outstandingAmount = originalAmount;
         this.status = DebtStatus.ACTIVE;
         this.overduePenalized = false;
+    }
+
+    /** Label (non-registered) debt. */
+    public Debt(User creditor, String debtorLabel, Receipt receipt, LocalDate purchaseDate,
+                LocalDate dueDate, BigDecimal originalAmount) {
+        this(creditor, (User) null, receipt, purchaseDate, dueDate, originalAmount);
+        this.debtorLabel = debtorLabel;
+    }
+
+    public boolean isLabelDebt() {
+        return debtor == null;
+    }
+
+    public String debtorDisplayName() {
+        return debtor != null ? debtor.getUsername() : debtorLabel;
+    }
+
+    public String getDebtorLabel() {
+        return debtorLabel;
     }
 
     public void addItem(DebtItem item) {

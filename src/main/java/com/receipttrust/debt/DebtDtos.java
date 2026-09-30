@@ -13,9 +13,16 @@ public final class DebtDtos {
     public record DebtSummary(
             Long debtId,
             String counterpartyUsername,
+            boolean counterpartyIsLabel,
             BigDecimal outstandingAmount,
             BigDecimal originalAmount,
             DebtStatus status,
+            LocalDate dueDate
+    ) {
+    }
+
+    /** Optional custom due date supplied when finalizing a receipt. */
+    public record FinalizeRequest(
             LocalDate dueDate
     ) {
     }

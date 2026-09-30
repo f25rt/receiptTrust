@@ -60,7 +60,8 @@ export interface Receipt {
   storeName: string;
   purchaseDate: string;
   notes: string | null;
-  imageContentType: string;
+  imageContentType: string | null;
+  hasImage: boolean;
   finalized: boolean;
 }
 
@@ -74,10 +75,17 @@ export interface ReceiptItem {
 
 export type SplitType = 'INDIVIDUAL' | 'EQUAL';
 
+/** One assignment target: a registered user (username) OR a free-text label. */
+export interface AssignTarget {
+  username?: string;
+  label?: string;
+}
+
 export interface Assignment {
   id: number;
   receiptItemId: number;
-  assigneeUsername: string;
+  assigneeName: string;
+  label: boolean;
   splitType: SplitType;
   shareAmount: string;
 }
@@ -87,10 +95,26 @@ export type DebtStatus = 'ACTIVE' | 'SETTLED';
 export interface DebtSummary {
   debtId: number;
   counterpartyUsername: string;
+  counterpartyIsLabel: boolean;
   outstandingAmount: string;
   originalAmount: string;
   status: DebtStatus;
   dueDate: string;
+}
+
+/** OCR-parsed draft returned by POST /receipts/scan. */
+export interface ParsedItem {
+  name: string;
+  quantity: number;
+  unitPrice: string;
+}
+
+export interface ReceiptDraft {
+  storeName: string | null;
+  items: ParsedItem[];
+  serviceCharge: string | null;
+  total: string | null;
+  rawText: string;
 }
 
 export interface Dashboard {

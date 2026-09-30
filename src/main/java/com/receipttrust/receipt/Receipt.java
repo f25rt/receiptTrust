@@ -32,10 +32,11 @@ public class Receipt extends BaseEntity {
     @Column(columnDefinition = "text")
     private String notes;
 
-    @Column(name = "image_path", nullable = false)
+    /** Optional: null when the receipt was created without an uploaded image. */
+    @Column(name = "image_path")
     private String imagePath;
 
-    @Column(name = "image_content_type", nullable = false)
+    @Column(name = "image_content_type")
     private String imageContentType;
 
     @Column(nullable = false)
@@ -56,6 +57,11 @@ public class Receipt extends BaseEntity {
         this.imagePath = imagePath;
         this.imageContentType = imageContentType;
         this.finalized = false;
+    }
+
+    /** Whether this receipt has a stored proof image. */
+    public boolean hasImage() {
+        return imagePath != null;
     }
 
     public User getOwner() {

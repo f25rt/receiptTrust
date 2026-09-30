@@ -175,8 +175,11 @@ class EndToEndFlowTest {
     private void assign(String token, Long receiptId, Long itemId, String split, List<String> users)
             throws Exception {
         HttpHeaders headers = jsonAuthHeaders(token);
+        List<Map<String, String>> targets = users.stream()
+                .map(u -> Map.of("username", u))
+                .toList();
         String payload = mapper.writeValueAsString(
-                Map.of("splitType", split, "assigneeUsernames", users));
+                Map.of("splitType", split, "targets", targets));
         ResponseEntity<String> resp = rest.exchange(
                 base() + "/api/receipts/" + receiptId + "/items/" + itemId + "/assignments",
                 HttpMethod.POST, new HttpEntity<>(payload, headers), String.class);

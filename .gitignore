@@ -23,3 +23,9 @@ Thumbs.db
 # Local env overrides
 application-local.yml
 .env
+
+# OCR trained data (re-downloadable; fetched at build time). See Dockerfile / README.
+tessdata/
+
+# vite-plugin-pwa dev service worker output
+frontend/dev-dist/

@@ -1,5 +1,7 @@
 package com.receipttrust.receipt;
 
+import com.receipttrust.ocr.OcrDtos;
+import com.receipttrust.ocr.OcrService;
 import com.receipttrust.security.CurrentUserService;
 import com.receipttrust.user.User;
 import jakarta.validation.Valid;
@@ -28,19 +30,34 @@ public class ReceiptController {
 
     private final ReceiptService receiptService;
     private final CurrentUserService currentUserService;
+    private final OcrService ocrService;
 
-    public ReceiptController(ReceiptService receiptService, CurrentUserService currentUserService) {
+    public ReceiptController(ReceiptService receiptService,
+                            CurrentUserService currentUserService,
+                            OcrService ocrService) {
         this.receiptService = receiptService;
         this.currentUserService = currentUserService;
+        this.ocrService = ocrService;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    /**
+     * OCR-scans an uploaded receipt image and returns a parsed draft (store name,
+     * line items, service charge, total). Does not persist anything; the user
+     * reviews and edits before creating the receipt.
+     */
+    @PostMapping(value = "/scan", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public OcrDtos.ReceiptDraft scan(@RequestParam("image") MultipartFile image) {
+        currentUserService.require();
+        return ocrService.scan(image);
+    }
+
+    @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
     @ResponseStatus(HttpStatus.CREATED)
     public ReceiptDtos.ReceiptResponse create(
             @RequestParam("storeName") String storeName,
             @RequestParam("purchaseDate") LocalDate purchaseDate,
             @RequestParam(value = "notes", required = false) String notes,
-            @RequestParam("image") MultipartFile image) {
+            @RequestParam(value = "image", required = false) MultipartFile image) {
         User me = currentUserService.require();
         return ReceiptDtos.ReceiptResponse.from(
                 receiptService.create(me, storeName, purchaseDate, notes, image));
@@ -56,6 +73,7 @@ public class ReceiptController {
     public ResponseEntity<InputStreamResource> image(@PathVariable Long id) {
         User me = currentUserService.require();
         Receipt receipt = receiptService.getForViewer(me, id);
+        // openImage throws 404 when there is no stored image.
         InputStreamResource resource = new InputStreamResource(receiptService.openImage(me, id));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(receipt.getImageContentType()))

@@ -1,5 +1,6 @@
 import { api, API_BASE } from './client';
 import type {
+  AssignTarget,
   Assignment,
   Dashboard,
   DebtExplanation,
@@ -11,6 +12,7 @@ import type {
   PaymentMethod,
   PublicProfile,
   Receipt,
+  ReceiptDraft,
   ReceiptItem,
   RegisterResponse,
   SearchResult,
@@ -50,12 +52,17 @@ export const friendApi = {
 };
 
 export const receiptApi = {
-  create: (storeName: string, purchaseDate: string, notes: string, image: File) => {
+  scan: (image: File) => {
+    const form = new FormData();
+    form.append('image', image);
+    return api.post<ReceiptDraft>('/receipts/scan', form);
+  },
+  create: (storeName: string, purchaseDate: string, notes: string, image: File | null) => {
     const form = new FormData();
     form.append('storeName', storeName);
     form.append('purchaseDate', purchaseDate);
     if (notes) form.append('notes', notes);
-    form.append('image', image);
+    if (image) form.append('image', image);
     return api.post<Receipt>('/receipts', form);
   },
   get: (id: number) => api.get<Receipt>(`/receipts/${id}`),
@@ -64,14 +71,19 @@ export const receiptApi = {
   addItem: (id: number, name: string, quantity: number, unitPrice: string) =>
     api.post<ReceiptItem>(`/receipts/${id}/items`, { name, quantity, unitPrice }),
   deleteItem: (id: number, itemId: number) => api.delete(`/receipts/${id}/items/${itemId}`),
-  assign: (id: number, itemId: number, splitType: SplitType, assigneeUsernames: string[]) =>
+  assign: (id: number, itemId: number, splitType: SplitType, targets: AssignTarget[]) =>
     api.post<Assignment[]>(`/receipts/${id}/items/${itemId}/assignments`, {
       splitType,
-      assigneeUsernames,
+      targets,
     }),
   listAssignments: (id: number, itemId: number) =>
     api.get<Assignment[]>(`/receipts/${id}/items/${itemId}/assignments`),
-  finalize: (id: number) => api.post<DebtSummary[]>(`/receipts/${id}/finalize`),
+  finalize: (id: number, dueDate?: string) =>
+    api.post<DebtSummary[]>(
+      `/receipts/${id}/finalize`,
+      null,
+      dueDate ? { params: { dueDate } } : undefined
+    ),
 };
 
 export const debtApi = {

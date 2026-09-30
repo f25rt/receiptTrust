@@ -34,10 +34,10 @@ public class DebtQueryService {
         List<Debt> iOwe = debtRepository.findByDebtor(user);
 
         List<DebtDtos.DebtSummary> owedToMeDtos = owedToMe.stream()
-                .map(d -> toSummary(d, d.getDebtor().getUsername()))
+                .map(d -> toSummary(d, d.debtorDisplayName(), d.isLabelDebt()))
                 .toList();
         List<DebtDtos.DebtSummary> iOweDtos = iOwe.stream()
-                .map(d -> toSummary(d, d.getCreditor().getUsername()))
+                .map(d -> toSummary(d, d.getCreditor().getUsername(), false))
                 .toList();
 
         BigDecimal totalOwedToMe = owedToMe.stream()
@@ -59,14 +59,17 @@ public class DebtQueryService {
     @Transactional(readOnly = true)
     public DebtDtos.ExplanationResponse explanation(User user, Long debtId) {
         Debt debt = debtService.require(debtId);
-        boolean participant = debt.getCreditor().getId().equals(user.getId())
-                || debt.getDebtor().getId().equals(user.getId());
-        if (!participant) {
+        boolean isCreditor = debt.getCreditor().getId().equals(user.getId());
+        boolean isDebtor = debt.getDebtor() != null && debt.getDebtor().getId().equals(user.getId());
+        if (!isCreditor && !isDebtor) {
             throw new ApiExceptions.ForbiddenException("Not a participant in this debt");
         }
         List<DebtDtos.ExplanationItem> items = debt.getItems().stream()
                 .map(i -> new DebtDtos.ExplanationItem(i.getItemName(), i.getAmount()))
                 .toList();
+        String imageUrl = debt.getReceipt().hasImage()
+                ? "/api/receipts/" + debt.getReceipt().getId() + "/image"
+                : null;
         return new DebtDtos.ExplanationResponse(
                 debt.getId(),
                 debt.getCreditor().getUsername(),
@@ -74,7 +77,7 @@ public class DebtQueryService {
                 debt.getPurchaseDate(),
                 items,
                 debt.getReceipt().getId(),
-                "/api/receipts/" + debt.getReceipt().getId() + "/image",
+                imageUrl,
                 debt.getOriginalAmount());
     }
 
@@ -112,8 +115,8 @@ public class DebtQueryService {
         return new DebtDtos.HistoryResponse(debt.getId(), events);
     }
 
-    private DebtDtos.DebtSummary toSummary(Debt d, String counterparty) {
-        return new DebtDtos.DebtSummary(d.getId(), counterparty, d.getOutstandingAmount(),
-                d.getOriginalAmount(), d.getStatus(), d.getDueDate());
+    private DebtDtos.DebtSummary toSummary(Debt d, String counterparty, boolean counterpartyIsLabel) {
+        return new DebtDtos.DebtSummary(d.getId(), counterparty, counterpartyIsLabel,
+                d.getOutstandingAmount(), d.getOriginalAmount(), d.getStatus(), d.getDueDate());
     }
 }

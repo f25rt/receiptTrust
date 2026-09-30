@@ -41,9 +41,16 @@ public class ReceiptService {
         if (purchaseDate == null) {
             throw new ApiExceptions.ValidationException("Purchase date is required");
         }
-        StoredFile stored = fileStorageService.storeReceiptImage(image);
+        // Image is optional: only store it when a non-empty file is provided.
+        String imagePath = null;
+        String imageContentType = null;
+        if (image != null && !image.isEmpty()) {
+            StoredFile stored = fileStorageService.storeReceiptImage(image);
+            imagePath = stored.relativePath();
+            imageContentType = stored.contentType();
+        }
         Receipt receipt = new Receipt(owner, storeName, purchaseDate, notes,
-                stored.relativePath(), stored.contentType());
+                imagePath, imageContentType);
         return receiptRepository.save(receipt);
     }
 
@@ -64,6 +71,9 @@ public class ReceiptService {
     @Transactional(readOnly = true)
     public InputStream openImage(User viewer, Long receiptId) {
         Receipt receipt = getForViewer(viewer, receiptId);
+        if (!receipt.hasImage()) {
+            throw new ApiExceptions.ResourceNotFoundException("This receipt has no image");
+        }
         return fileStorageService.openReceiptImage(receipt.getImagePath());
     }
 

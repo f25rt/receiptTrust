@@ -25,7 +25,8 @@ import java.util.List;
         StorageProperties.class,
         DebtProperties.class,
         TrustProperties.class,
-        CorsProperties.class
+        CorsProperties.class,
+        OcrProperties.class
 })
 public class SecurityConfig {
 

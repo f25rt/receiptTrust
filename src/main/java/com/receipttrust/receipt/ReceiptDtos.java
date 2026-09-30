@@ -20,11 +20,13 @@ public final class ReceiptDtos {
             LocalDate purchaseDate,
             String notes,
             String imageContentType,
+            boolean hasImage,
             boolean finalized
     ) {
         public static ReceiptResponse from(Receipt r) {
             return new ReceiptResponse(r.getId(), r.getOwner().getId(), r.getStoreName(),
-                    r.getPurchaseDate(), r.getNotes(), r.getImageContentType(), r.isFinalized());
+                    r.getPurchaseDate(), r.getNotes(), r.getImageContentType(),
+                    r.hasImage(), r.isFinalized());
         }
     }
 

@@ -14,7 +14,12 @@ import { ReactNode } from 'react';
 
 function Protected({ children }: { children: ReactNode }) {
   const { profile, loading } = useAuth();
-  if (loading) return <div className="center muted">Loading…</div>;
+  if (loading)
+    return (
+      <div className="min-h-screen bg-surface text-on-surface-variant flex items-center justify-center">
+        Loading…
+      </div>
+    );
   if (!profile) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

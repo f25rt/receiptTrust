@@ -58,6 +58,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- OCR (Tesseract via Tess4J) -->
+        <dependency>
+            <groupId>net.sourceforge.tess4j</groupId>
+            <artifactId>tess4j</artifactId>
+            <version>5.13.0</version>
+        </dependency>
+
         <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

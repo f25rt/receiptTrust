@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,7 +42,7 @@ public class AssignmentController {
             @Valid @RequestBody AssignmentDtos.AssignmentCreateRequest request) {
         User me = currentUserService.require();
         return assignmentService.assignDtos(
-                me, receiptId, itemId, request.splitType(), request.assigneeUsernames());
+                me, receiptId, itemId, request.splitType(), request.targets());
     }
 
     @GetMapping("/items/{itemId}/assignments")
@@ -62,8 +63,12 @@ public class AssignmentController {
 
     @PostMapping("/finalize")
     @ResponseStatus(HttpStatus.CREATED)
-    public List<DebtDtos.DebtSummary> finalize(@PathVariable Long receiptId) {
+    public List<DebtDtos.DebtSummary> finalize(
+            @PathVariable Long receiptId,
+            @RequestParam(value = "dueDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate dueDate) {
         User me = currentUserService.require();
-        return debtService.finalizeReceiptSummaries(me, receiptId);
+        return debtService.finalizeReceiptSummaries(me, receiptId, dueDate);
     }
 }

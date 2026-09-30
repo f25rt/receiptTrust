@@ -39,8 +39,8 @@ public class AssignmentService {
     @Transactional
     public List<AssignmentDtos.AssignmentResponse> assignDtos(User owner, Long receiptId, Long itemId,
                                                               SplitType splitType,
-                                                              List<String> assigneeUsernames) {
-        return assign(owner, receiptId, itemId, splitType, assigneeUsernames).stream()
+                                                              List<AssignmentDtos.AssignTarget> targets) {
+        return assign(owner, receiptId, itemId, splitType, targets).stream()
                 .map(AssignmentDtos.AssignmentResponse::from)
                 .toList();
     }
@@ -54,7 +54,7 @@ public class AssignmentService {
 
     @Transactional
     public List<ItemAssignment> assign(User owner, Long receiptId, Long itemId,
-                                       SplitType splitType, List<String> assigneeUsernames) {
+                                       SplitType splitType, List<AssignmentDtos.AssignTarget> targets) {
         Receipt receipt = receiptService.requireOwned(owner, receiptId);
         if (receipt.isFinalized()) {
             throw new ApiExceptions.ConflictException("Receipt already finalized");
@@ -65,14 +65,14 @@ public class AssignmentService {
             throw new ApiExceptions.ResourceNotFoundException("Item not found on this receipt");
         }
 
-        List<User> assignees = resolveAssignees(owner, assigneeUsernames);
+        List<ResolvedTarget> resolved = resolveTargets(owner, targets);
 
         // Guard against over-assignment: existing shares + new shares must not exceed the line total.
         BigDecimal alreadyAssigned = assignmentRepository.findByReceiptItem(item).stream()
                 .map(ItemAssignment::getShareAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<BigDecimal> shares = computeShares(item.getLineTotal(), splitType, assignees.size());
+        List<BigDecimal> shares = computeShares(item.getLineTotal(), splitType, resolved.size());
         BigDecimal newTotal = shares.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (alreadyAssigned.add(newTotal).compareTo(item.getLineTotal()) > 0) {
@@ -81,9 +81,12 @@ public class AssignmentService {
         }
 
         List<ItemAssignment> created = new ArrayList<>();
-        for (int i = 0; i < assignees.size(); i++) {
-            created.add(assignmentRepository.save(
-                    new ItemAssignment(item, assignees.get(i), splitType, shares.get(i))));
+        for (int i = 0; i < resolved.size(); i++) {
+            ResolvedTarget t = resolved.get(i);
+            ItemAssignment assignment = t.user != null
+                    ? new ItemAssignment(item, t.user, splitType, shares.get(i))
+                    : new ItemAssignment(item, t.label, splitType, shares.get(i));
+            created.add(assignmentRepository.save(assignment));
         }
         return created;
     }
@@ -110,20 +113,32 @@ public class AssignmentService {
         return assignmentRepository.findByReceiptItem(item);
     }
 
-    private List<User> resolveAssignees(User owner, List<String> usernames) {
-        List<User> assignees = new ArrayList<>();
-        for (String username : usernames) {
-            User assignee = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new ApiExceptions.ValidationException(
-                            "User not found: " + username));
-            boolean isOwner = assignee.getId().equals(owner.getId());
-            if (!isOwner && !friendService.areFriends(owner, assignee)) {
-                throw new ApiExceptions.ValidationException(
-                        "Can only assign items to accepted friends: " + username);
+    /** A resolved assignment target: either a registered user or a label string. */
+    private record ResolvedTarget(User user, String label) {
+    }
+
+    private List<ResolvedTarget> resolveTargets(User owner, List<AssignmentDtos.AssignTarget> targets) {
+        List<ResolvedTarget> resolved = new ArrayList<>();
+        for (AssignmentDtos.AssignTarget target : targets) {
+            if (target.isLabel()) {
+                String label = target.label() == null ? "" : target.label().strip();
+                if (label.isEmpty()) {
+                    throw new ApiExceptions.ValidationException("Label name is required");
+                }
+                resolved.add(new ResolvedTarget(null, label));
+            } else {
+                User assignee = userRepository.findByUsername(target.username())
+                        .orElseThrow(() -> new ApiExceptions.ValidationException(
+                                "User not found: " + target.username()));
+                boolean isOwner = assignee.getId().equals(owner.getId());
+                if (!isOwner && !friendService.areFriends(owner, assignee)) {
+                    throw new ApiExceptions.ValidationException(
+                            "Can only assign items to accepted friends: " + target.username());
+                }
+                resolved.add(new ResolvedTarget(assignee, null));
             }
-            assignees.add(assignee);
         }
-        return assignees;
+        return resolved;
     }
 
     private List<BigDecimal> computeShares(BigDecimal lineTotal, SplitType splitType, int count) {
