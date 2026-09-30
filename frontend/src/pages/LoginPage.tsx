@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiErrorMessage } from '../api/client';
 import { ErrorBanner, Icon } from '../components/ui';
+import GoogleButton, { GoogleDivider } from '../auth/GoogleButton';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +24,16 @@ export default function LoginPage() {
       setError(apiErrorMessage(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onGoogle = async (idToken: string) => {
+    setError(null);
+    try {
+      await loginWithGoogle(idToken);
+      navigate('/');
+    } catch (err) {
+      setError(apiErrorMessage(err));
     }
   };
 
@@ -50,6 +61,9 @@ export default function LoginPage() {
           <button className="btn-primary w-full py-3" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
+
+          <GoogleDivider />
+          <GoogleButton text="signin_with" onCredential={onGoogle} onError={setError} />
         </form>
 
         <p className="font-body-sm text-on-surface-variant text-center">

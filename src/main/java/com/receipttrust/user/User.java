@@ -3,6 +3,8 @@ package com.receipttrust.user;
 import com.receipttrust.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -22,7 +24,8 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    /** Null for social accounts that have not set a local password. */
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "profile_image_path")
@@ -31,15 +34,43 @@ public class User extends BaseEntity {
     @Column(name = "trust_score", nullable = false)
     private int trustScore;
 
+    /** How the account authenticates: LOCAL, GOOGLE, or FACEBOOK. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private AuthProvider provider = AuthProvider.LOCAL;
+
+    /** Provider's stable user id (e.g. Google "sub"); null for LOCAL. */
+    @Column(name = "provider_subject")
+    private String providerSubject;
+
     protected User() {
     }
 
+    /** Local (password) account. */
     public User(String fullName, String username, String email, String passwordHash, int trustScore) {
         this.fullName = fullName;
         this.username = username;
         this.email = email;
         this.passwordHash = passwordHash;
         this.trustScore = trustScore;
+        this.provider = AuthProvider.LOCAL;
+    }
+
+    /** Social (OAuth) account with no local password. */
+    public User(String fullName, String username, String email, int trustScore,
+                AuthProvider provider, String providerSubject) {
+        this.fullName = fullName;
+        this.username = username;
+        this.email = email;
+        this.passwordHash = null;
+        this.trustScore = trustScore;
+        this.provider = provider;
+        this.providerSubject = providerSubject;
+    }
+
+    /** Whether this account can sign in with a local password. */
+    public boolean hasPassword() {
+        return passwordHash != null && !passwordHash.isBlank();
     }
 
     public String getFullName() {
@@ -88,5 +119,21 @@ public class User extends BaseEntity {
 
     public void setTrustScore(int trustScore) {
         this.trustScore = trustScore;
+    }
+
+    public AuthProvider getProvider() {
+        return provider;
+    }
+
+    public void setProvider(AuthProvider provider) {
+        this.provider = provider;
+    }
+
+    public String getProviderSubject() {
+        return providerSubject;
+    }
+
+    public void setProviderSubject(String providerSubject) {
+        this.providerSubject = providerSubject;
     }
 }

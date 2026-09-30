@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
@@ -163,6 +163,9 @@ export default function ProfilePage() {
         </label>
       </Card>
 
+      {/* Sign-in method / set password */}
+      <SetPasswordCard />
+
       {/* Log out */}
       <button className="btn-destructive w-full py-3" onClick={handleLogout}>
         <Icon name="logout" className="text-[18px]" />
@@ -181,6 +184,84 @@ function Metric({ icon, label, value }: { icon: string; label: string; value: nu
       <span className="font-headline-md text-on-surface">{value}</span>
       <span className="font-label-sm text-on-surface-variant">{label}</span>
     </div>
+  );
+}
+
+function SetPasswordCard() {
+  const { profile, refreshProfile } = useAuth();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (!profile) return null;
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setDone(false);
+    setBusy(true);
+    try {
+      await profileApi.setPassword(password);
+      setPassword('');
+      setDone(true);
+      await refreshProfile();
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="flex flex-col gap-space-sm">
+      <span className="font-headline-sm text-on-surface">Sign-in method</span>
+      <div className="flex items-center gap-space-sm">
+        <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-secondary">
+          <Icon name={profile.provider === 'LOCAL' ? 'password' : 'account_circle'} className="text-[18px]" />
+        </div>
+        <div className="flex flex-col">
+          <span className="font-body-md text-on-surface">
+            {profile.provider === 'GOOGLE' ? 'Google' : profile.provider === 'FACEBOOK' ? 'Facebook' : 'Email & password'}
+          </span>
+          <span className="font-label-sm text-on-surface-variant">
+            {profile.hasPassword ? 'Password sign-in enabled' : 'No password set'}
+          </span>
+        </div>
+      </div>
+
+      {!profile.hasPassword && (
+        <p className="font-body-sm text-on-surface-variant">
+          You signed up with {profile.provider === 'GOOGLE' ? 'Google' : 'a social account'}. Set a
+          password to also sign in with your username and password.
+        </p>
+      )}
+
+      <ErrorBanner message={error} />
+      {done && (
+        <div className="flex items-center gap-space-2xs text-tertiary font-label-md">
+          <Icon name="check_circle" className="text-[16px]" /> Password updated
+        </div>
+      )}
+
+      <form className="flex flex-col gap-space-sm" onSubmit={submit}>
+        <div>
+          <label className="field-label">{profile.hasPassword ? 'New password' : 'Set a password'} (min 8 chars)</label>
+          <input
+            className="field-input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            required
+          />
+        </div>
+        <button className="btn-glass w-full py-3" disabled={busy}>
+          <Icon name="lock" className="text-[18px]" />
+          {busy ? 'Saving…' : profile.hasPassword ? 'Change password' : 'Set password'}
+        </button>
+      </form>
+    </Card>
   );
 }
 

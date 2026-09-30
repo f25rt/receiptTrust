@@ -11,6 +11,8 @@ export interface RegisterResponse {
 
 export type ReputationLevel = 'POOR' | 'FAIR' | 'GOOD' | 'VERY_GOOD' | 'EXCELLENT';
 
+export type AuthProvider = 'LOCAL' | 'GOOGLE' | 'FACEBOOK';
+
 export interface MyProfile {
   id: number;
   fullName: string;
@@ -22,6 +24,8 @@ export interface MyProfile {
   debtsSettled: number;
   currentDebts: number;
   averageRepaymentDays: number | null;
+  provider: AuthProvider;
+  hasPassword: boolean;
 }
 
 export interface PublicProfile {

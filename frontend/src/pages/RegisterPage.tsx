@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiErrorMessage } from '../api/client';
 import { ErrorBanner, Icon } from '../components/ui';
+import GoogleButton, { GoogleDivider } from '../auth/GoogleButton';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
@@ -25,6 +26,16 @@ export default function RegisterPage() {
       setError(apiErrorMessage(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onGoogle = async (idToken: string) => {
+    setError(null);
+    try {
+      await loginWithGoogle(idToken);
+      navigate('/');
+    } catch (err) {
+      setError(apiErrorMessage(err));
     }
   };
 
@@ -59,6 +70,9 @@ export default function RegisterPage() {
           <button className="btn-primary w-full py-3" disabled={busy}>
             {busy ? 'Creating…' : 'Create account'}
           </button>
+
+          <GoogleDivider />
+          <GoogleButton text="signup_with" onCredential={onGoogle} onError={setError} />
         </form>
 
         <p className="font-body-sm text-on-surface-variant text-center">

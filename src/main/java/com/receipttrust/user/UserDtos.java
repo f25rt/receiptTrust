@@ -18,7 +18,9 @@ public final class UserDtos {
             ReputationLevel reputationLevel,
             long debtsSettled,
             long currentDebts,
-            Double averageRepaymentDays
+            Double averageRepaymentDays,
+            AuthProvider provider,
+            boolean hasPassword
     ) {
     }
 

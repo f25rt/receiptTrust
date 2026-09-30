@@ -21,15 +21,18 @@ public class UserController {
     private final ProfileMetricsService metricsService;
     private final CurrentUserService currentUserService;
     private final FileStorageService fileStorageService;
+    private final com.receipttrust.security.AuthService authService;
 
     public UserController(UserRepository userRepository,
                           ProfileMetricsService metricsService,
                           CurrentUserService currentUserService,
-                          FileStorageService fileStorageService) {
+                          FileStorageService fileStorageService,
+                          com.receipttrust.security.AuthService authService) {
         this.userRepository = userRepository;
         this.metricsService = metricsService;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
+        this.authService = authService;
     }
 
     @GetMapping("/api/me")
@@ -41,7 +44,9 @@ public class UserController {
                 ReputationLevel.fromScore(me.getTrustScore()),
                 metricsService.debtsSettled(me),
                 metricsService.currentDebts(me),
-                metricsService.averageRepaymentDays(me));
+                metricsService.averageRepaymentDays(me),
+                me.getProvider(),
+                me.hasPassword());
     }
 
     @GetMapping("/api/users/{username}")
@@ -72,6 +77,16 @@ public class UserController {
         StoredFile stored = fileStorageService.storeProfileImage(file);
         me.setProfileImagePath(stored.relativePath());
         userRepository.save(me);
+        return me();
+    }
+
+    /** Set/enable a local password (lets social-login users also use password sign-in). */
+    @PostMapping("/api/me/password")
+    public UserDtos.MyProfileResponse setPassword(
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.receipttrust.security.AuthDtos.SetPasswordRequest request) {
+        User me = currentUserService.require();
+        authService.setPassword(me, request.password());
         return me();
     }
 }

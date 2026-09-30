@@ -7,6 +7,7 @@ interface AuthState {
   profile: MyProfile | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   register: (fullName: string, username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -41,6 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile();
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    const resp = await authApi.google(idToken);
+    tokenStore.set(resp.data.accessToken, resp.data.refreshToken);
+    await loadProfile();
+  };
+
   const register = async (
     fullName: string,
     username: string,
@@ -65,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<AuthState>(
-    () => ({ profile, loading, login, register, logout, refreshProfile: loadProfile }),
+    () => ({ profile, loading, login, loginWithGoogle, register, logout, refreshProfile: loadProfile }),
     [profile, loading]
   );
 

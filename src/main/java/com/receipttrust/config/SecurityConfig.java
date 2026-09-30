@@ -26,7 +26,8 @@ import java.util.List;
         DebtProperties.class,
         TrustProperties.class,
         CorsProperties.class,
-        OcrProperties.class
+        OcrProperties.class,
+        SocialAuthProperties.class
 })
 public class SecurityConfig {
 
@@ -75,7 +76,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // CORS preflight must never be blocked by security.
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh")
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
+                                "/api/auth/google", "/api/auth/facebook")
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**")
                         .permitAll()

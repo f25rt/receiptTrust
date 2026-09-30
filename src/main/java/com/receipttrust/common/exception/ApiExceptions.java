@@ -51,4 +51,22 @@ public final class ApiExceptions {
             super("Authentication failed");
         }
     }
+
+    /**
+     * 409 — the account exists but has no local password and must sign in via
+     * its social provider (unless the user later sets a password).
+     */
+    public static class SocialLoginRequired extends ConflictException {
+        public SocialLoginRequired(String provider) {
+            super("This account uses " + capitalize(provider)
+                    + " sign-in. Use that, or set a password from your profile to enable password login.");
+        }
+
+        private static String capitalize(String s) {
+            if (s == null || s.isEmpty()) {
+                return s;
+            }
+            return s.charAt(0) + s.substring(1).toLowerCase();
+        }
+    }
 }

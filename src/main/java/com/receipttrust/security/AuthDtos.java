@@ -45,4 +45,21 @@ public final class AuthDtos {
             String email
     ) {
     }
+
+    /** Google Identity Services ID token from the frontend. */
+    public record GoogleLoginRequest(
+            @NotBlank String idToken
+    ) {
+    }
+
+    /** Facebook access token from the frontend (prepared; needs app keys). */
+    public record FacebookLoginRequest(
+            @NotBlank String accessToken
+    ) {
+    }
+
+    public record SetPasswordRequest(
+            @NotBlank @Size(min = 8, max = 100) String password
+    ) {
+    }
 }

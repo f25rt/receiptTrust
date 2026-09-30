@@ -27,6 +27,8 @@ export const authApi = {
     api.post<RegisterResponse>('/auth/register', { fullName, username, email, password }),
   login: (username: string, password: string) =>
     api.post<TokenResponse>('/auth/login', { username, password }),
+  google: (idToken: string) => api.post<TokenResponse>('/auth/google', { idToken }),
+  facebook: (accessToken: string) => api.post<TokenResponse>('/auth/facebook', { accessToken }),
   logout: (refreshToken: string) => api.post('/auth/logout', { refreshToken }),
 };
 
@@ -39,6 +41,7 @@ export const profileApi = {
     form.append('file', file);
     return api.post<MyProfile>('/me/profile-image', form);
   },
+  setPassword: (password: string) => api.post<MyProfile>('/me/password', { password }),
 };
 
 export const friendApi = {

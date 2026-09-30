@@ -32,6 +32,18 @@ public class AuthController {
         return authService.login(request);
     }
 
+    /** Sign in / sign up with Google (ID-token flow). */
+    @PostMapping("/google")
+    public AuthDtos.TokenResponse google(@Valid @RequestBody AuthDtos.GoogleLoginRequest request) {
+        return authService.loginWithGoogle(request.idToken());
+    }
+
+    /** Facebook login — prepared but requires app keys; disabled until configured. */
+    @PostMapping("/facebook")
+    public AuthDtos.TokenResponse facebook(@Valid @RequestBody AuthDtos.FacebookLoginRequest request) {
+        return authService.loginWithFacebook(request.accessToken());
+    }
+
     @PostMapping("/refresh")
     public AuthDtos.TokenResponse refresh(@Valid @RequestBody AuthDtos.RefreshRequest request) {
         return authService.refresh(request.refreshToken());
