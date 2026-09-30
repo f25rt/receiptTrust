@@ -1,17 +1,80 @@
 # Deploying ReceiptTrust to Render
 
-This deploys three resources via the [`render.yaml`](render.yaml) blueprint:
+Deploy three resources:
 
 | Resource            | Type              | What it is                                  |
 |---------------------|-------------------|---------------------------------------------|
-| `receipttrust-db`   | PostgreSQL 16     | Managed database (Render generates creds)   |
+| `receipttrust-db`   | PostgreSQL 16     | Managed database                            |
 | `receipttrust-api`  | Docker web service| Spring Boot API (from `Dockerfile`)         |
 | `receipttrust-web`  | Static site       | React frontend (from `frontend/`)           |
+
+> **Free tier:** Render Blueprints (`render.yaml`) now require a paid workspace, so on a
+> free account use the **manual** steps below. The `render.yaml` in this repo is kept only
+> for reference / paid workspaces.
 
 ## Prerequisites
 
 - The repo pushed to GitHub (or GitLab/Bitbucket).
 - A free [Render](https://render.com) account.
+
+---
+
+## Manual deploy (free tier)
+
+Create the three resources by hand in the Render dashboard, in this order.
+
+### 1. PostgreSQL
+- **New +** → **PostgreSQL**. Name `receipttrust-db`, database `receipttrust`,
+  user `receipttrust`, **Free** plan. Pick a region and remember it.
+- Open the DB → **Connections** and copy the host, port, database, username, password.
+- Free Postgres is deleted after 30 days and is limited to one instance.
+
+### 2. Backend API (Docker web service)
+- **New +** → **Web Service** → connect the repo → **Runtime: Docker** (uses the `Dockerfile`).
+- Same **region** as the DB. **Free** plan. **Health Check Path**: `/actuator/health`.
+- Environment variables:
+
+| Key | Value |
+|-----|-------|
+| `SERVER_PORT` | `8080` |
+| `DB_URL` | `jdbc:postgresql://<HOST>:<PORT>/<DB>` (built from the DB's connection info) |
+| `DB_USERNAME` | the DB user |
+| `DB_PASSWORD` | the DB password |
+| `JWT_SECRET` | a Base64 32-byte+ secret (generate one; keep it stable) |
+| `FRONTEND_ORIGINS` | set after step 3 to the static site's https URL |
+
+Generate a JWT secret (PowerShell):
+```powershell
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+```
+
+Note: free web services have **no persistent disk**, so leave `RECEIPT_DIR`/`PROFILE_DIR`
+unset (they default to a container-local path). Uploaded images are lost on restart —
+acceptable for a free-tier demo. Debts, items, and receipt metadata live in Postgres and persist.
+
+### 3. Frontend (static site)
+- **New +** → **Static Site** → same repo.
+- **Build Command**: `cd frontend && npm ci && npm run build`
+- **Publish Directory**: `frontend/dist`
+- Environment variable: `VITE_API_BASE_URL` = the API service URL (e.g. `https://receipttrust-api.onrender.com`).
+- **Redirects/Rewrites**: add Source `/*` → Destination `/index.html`, Action **Rewrite** (SPA routing + PWA).
+
+### 4. Wire cross-URLs and redeploy
+- On the **API**: set `FRONTEND_ORIGINS` = the static site URL, then redeploy.
+- On the **web**: confirm `VITE_API_BASE_URL` = the API URL, then **Manual Deploy → Deploy latest commit**
+  (the frontend must rebuild so the API URL is baked into the bundle).
+
+### Free-tier notes
+- Web services **sleep** after ~15 min idle; first request after that cold-starts in ~30–60s.
+- The installable PWA works (Render serves HTTPS). For the installed app to reach the API,
+  `VITE_API_BASE_URL` must be set at build time (step 3).
+
+---
+
+## Blueprint (render.yaml) — paid workspaces only
+
+> Not available on the free tier. Use the manual steps above unless you have a paid
+> Render workspace.
 
 ## Step 1 — Create the Blueprint
 

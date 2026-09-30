@@ -23,8 +23,12 @@ RUN apt-get update \
 RUN useradd -r -u 1001 appuser
 COPY --from=build /app/target/receipttrust-0.0.1-SNAPSHOT.jar app.jar
 
-# Persistent-disk mount point for uploaded receipt/profile images.
-RUN mkdir -p /data/storage && chown -R appuser:appuser /data
+# App-local storage for uploaded images. On Render's free tier there is no
+# persistent disk, so this lives inside the container (images are lost on
+# restart — acceptable for free-tier testing). On paid plans, mount a disk at
+# /data/storage and set RECEIPT_DIR/PROFILE_DIR to point there.
+RUN mkdir -p /app/storage/receipts /app/storage/profiles /data/storage \
+    && chown -R appuser:appuser /app /data
 USER appuser
 
 # Point the app at the system tessdata installed above.

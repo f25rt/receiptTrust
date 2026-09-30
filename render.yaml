@@ -1,4 +1,9 @@
 # Render Blueprint for ReceiptTrust.
+#
+# NOTE: Blueprints require a PAID Render workspace. On the free tier this file is not
+# usable — deploy the three resources manually instead (see DEPLOY.md "Manual deploy").
+# This file is kept for reference and for paid workspaces.
+#
 # Provisions: a managed PostgreSQL database, the Spring Boot API (Docker web service),
 # and the React frontend (static site).
 #
