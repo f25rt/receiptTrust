@@ -1,0 +1,25 @@
+# Build output
+target/
+build/
+
+# Local toolchain (bundled JDK, not committed)
+.tools/
+
+# Local receipt image storage
+storage/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Local env overrides
+application-local.yml
+.env

@@ -1,0 +1,26 @@
+# PostgreSQL for ReceiptTrust (local development).
+# Host port 5433 is used to avoid clashing with a native PostgreSQL on 5432.
+services:
+  postgres:
+    image: postgres:16
+    container_name: receipttrust-db
+    restart: unless-stopped
+    environment:
+      # Superuser / admin account
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Application database created on first boot
+      POSTGRES_DB: receipttrust
+    ports:
+      - "5433:5432"
+    volumes:
+      - receipttrust_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d receipttrust"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  receipttrust_pgdata:

@@ -1,0 +1,92 @@
+# Render Blueprint for ReceiptTrust.
+# Provisions: a managed PostgreSQL database, the Spring Boot API (Docker web service),
+# and the React frontend (static site).
+#
+# Deploy: push this repo to GitHub, then in Render choose "New +" -> "Blueprint" and
+# point it at the repo. Render reads this file and creates all three resources.
+#
+# After the first deploy, set the two cross-origin URLs (they need the https:// scheme,
+# which Render's host property does not include):
+#   - On "receipttrust-api": set FRONTEND_ORIGINS = https://<the receipttrust-web URL>
+#   - On "receipttrust-web": set VITE_API_BASE_URL = https://<the receipttrust-api URL>
+# Then trigger a redeploy of each. See DEPLOY.md for the full walkthrough.
+
+databases:
+  - name: receipttrust-db
+    databaseName: receipttrust
+    user: receipttrust
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # ---------------- Backend API ----------------
+  - type: web
+    name: receipttrust-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    disk:
+      # Uploaded receipt/profile images. Render's container FS is ephemeral,
+      # so persist the storage directory on a disk.
+      name: receipttrust-storage
+      mountPath: /data/storage
+      sizeGB: 1
+    envVars:
+      - key: SERVER_PORT
+        value: "8080"
+      # Managed database connection fields.
+      - key: DB_HOST
+        fromDatabase:
+          name: receipttrust-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: receipttrust-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: receipttrust-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: receipttrust-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: receipttrust-db
+          property: password
+      # JDBC URL assembled from the fields above.
+      - key: DB_URL
+        value: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      # Persist uploads to the mounted disk.
+      - key: RECEIPT_DIR
+        value: /data/storage/receipts
+      - key: PROFILE_DIR
+        value: /data/storage/profiles
+      # Strong JWT signing secret generated once by Render and kept stable.
+      - key: JWT_SECRET
+        generateValue: true
+      # Set to the static site's https URL after the first deploy (see notes above).
+      - key: FRONTEND_ORIGINS
+        sync: false
+
+  # ---------------- Frontend (static site) ----------------
+  - type: web
+    name: receipttrust-web
+    runtime: static
+    plan: free
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    autoDeploy: true
+    # SPA routing: serve index.html for all client-side routes.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Set to the API service's https URL after the first deploy (see notes above).
+      - key: VITE_API_BASE_URL
+        sync: false

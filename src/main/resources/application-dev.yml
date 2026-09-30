@@ -1,0 +1,21 @@
+# Dev profile: runs the app with zero external dependencies using a file-backed
+# H2 database (PostgreSQL compatibility mode). Flyway is disabled and Hibernate
+# creates the schema from the entities. Use the default profile for real Postgres.
+spring:
+  datasource:
+    url: jdbc:h2:file:./storage/devdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console

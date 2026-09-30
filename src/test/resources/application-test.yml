@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:receipttrust;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+
+receipttrust:
+  security:
+    jwt:
+      secret: Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMzJieXRlcyE=
+      access-token-ttl-minutes: 15
+      refresh-token-ttl-days: 14
+  storage:
+    receipt-dir: ./build/test-storage/receipts
+    profile-dir: ./build/test-storage/profiles
+  debt:
+    default-term-days: 14
+  trust:
+    initial-score: 500
+    min-score: 300
+    max-score: 850

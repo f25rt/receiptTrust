@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.vite/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js

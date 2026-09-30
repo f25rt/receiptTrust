@@ -1,0 +1,10 @@
+.git
+.tools
+target
+storage
+frontend/node_modules
+frontend/dist
+docker
+*.md
+.idea
+.vscode
