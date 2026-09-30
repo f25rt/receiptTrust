@@ -46,10 +46,20 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        // Normalize configured origins: drop blanks and trailing slashes so a value
+        // like "https://app.onrender.com/" still matches the browser Origin header.
+        List<String> origins = corsProperties.getAllowedOrigins().stream()
+                .filter(o -> o != null && !o.isBlank())
+                .map(o -> o.strip().replaceAll("/+$", ""))
+                .toList();
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // allowedOriginPatterns works with allowCredentials(true) and tolerates
+        // exact origins as well as patterns.
+        config.setAllowedOriginPatterns(origins);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
