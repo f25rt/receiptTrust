@@ -65,4 +65,38 @@ class ReceiptTextParserTest {
         assertThat(draft.items().stream().map(OcrDtos.ParsedItem::unitPrice))
                 .doesNotContain(new BigDecimal("12.00"));
     }
+
+    @Test
+    void parsesQtyColumnWithPriceAndAmountColumns() {
+        // Layout like "The Daily Bite": Qty | Item | Price | Amount, peso amounts, VAT + service.
+        String text = String.join("\n",
+                "THE DAILY BITE",
+                "Qty  Item Description        Price      Amount",
+                "1    Classic Burger          295.00     295.00",
+                "1    Truffle Fries           185.00     185.00",
+                "2    Iced Latte              165.00     330.00",
+                "1    Chocolate Lava Cake     220.00     220.00",
+                "Subtotal                                1,030.00",
+                "Service Charge (10%)                    103.00",
+                "VAT (12%)                               135.96",
+                "TOTAL                                   1,268.96");
+
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(text);
+
+        assertThat(draft.storeName()).isEqualTo("THE DAILY BITE");
+        assertThat(draft.serviceCharge()).isEqualByComparingTo("103.00");
+        assertThat(draft.total()).isEqualByComparingTo("1268.96");
+        assertThat(draft.items()).hasSize(4);
+
+        OcrDtos.ParsedItem burger = draft.items().get(0);
+        assertThat(burger.name()).isEqualTo("Classic Burger");
+        assertThat(burger.quantity()).isEqualTo(1);
+        assertThat(burger.unitPrice()).isEqualByComparingTo("295.00");
+
+        OcrDtos.ParsedItem latte = draft.items().get(2);
+        assertThat(latte.name()).isEqualTo("Iced Latte");
+        assertThat(latte.quantity()).isEqualTo(2);
+        // Price column is the unit price, not the 330.00 amount.
+        assertThat(latte.unitPrice()).isEqualByComparingTo("165.00");
+    }
 }

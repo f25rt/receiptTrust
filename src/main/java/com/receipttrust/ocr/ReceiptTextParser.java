@@ -10,25 +10,29 @@ import java.util.regex.Pattern;
 
 /**
  * Parses raw OCR text from a receipt into a best-effort structured draft:
- * store name, line items (with optional quantity), service charge, and total.
+ * store name, line items (qty/name/price), service charge, and total.
  *
- * This is deliberately dependency-free and pure so it can be unit tested without
- * the native Tesseract engine.
+ * Handles two common item layouts:
+ *   "2x Oat Milk Latte        13.00"          (qty glued to name, single amount)
+ *   " 2  Iced Latte    165.00   330.00"       (qty column, Price + Amount columns)
+ *
+ * Dependency-free and pure so it can be unit tested without the native engine.
  */
 public final class ReceiptTextParser {
 
-    // A trailing money amount, e.g. "12.00", "1,234.50", "$6.50".
-    private static final Pattern PRICE = Pattern.compile("\\$?\\s*(\\d{1,3}(?:[.,]\\d{3})*|\\d+)[.,](\\d{2})\\s*$");
-    // Optional leading quantity: "2x", "2 x", "2 ".
+    // One money amount anywhere: 12.00 / 1,234.50 / $6.50 / 1.268,96 not handled (dot-decimal only).
+    private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:,\\d{3})+|\\d+)\\.(\\d{2})");
+    // Leading quantity column: "2x", "2 x", or just "2 " at the very start.
     private static final Pattern QTY_PREFIX = Pattern.compile("^\\s*(\\d{1,3})\\s*[xX]?\\s+");
 
     private static final List<String> TOTAL_KEYS = List.of("total", "amount due", "balance due", "grand total");
     private static final List<String> SERVICE_KEYS = List.of("service charge", "service", "svc charge", "gratuity", "tip");
     private static final List<String> SKIP_KEYS = List.of(
             "subtotal", "sub total", "tax", "vat", "change", "cash", "card", "visa",
-            "mastercard", "balance", "tender", "auth", "approval", "thank", "receipt",
-            "invoice", "order", "table", "server", "cashier", "date", "time", "tel",
-            "phone", "www", "http", "discount");
+            "mastercard", "balance", "tender", "amount tendered", "auth", "approval",
+            "thank", "receipt", "invoice", "order", "table", "server", "cashier",
+            "date", "time", "tel", "phone", "www", "http", "discount", "payment",
+            "qty", "item description", "price", "amount");
 
     private ReceiptTextParser() {
     }
@@ -38,9 +42,8 @@ public final class ReceiptTextParser {
             return OcrDtos.ReceiptDraft.empty();
         }
 
-        String[] rawLines = rawText.split("\\r?\\n");
         List<String> lines = new ArrayList<>();
-        for (String l : rawLines) {
+        for (String l : rawText.split("\\r?\\n")) {
             String t = l.strip();
             if (!t.isEmpty()) {
                 lines.add(t);
@@ -54,20 +57,19 @@ public final class ReceiptTextParser {
 
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.ROOT);
-            BigDecimal price = extractTrailingPrice(line);
-
-            if (price == null) {
+            List<BigDecimal> amounts = extractAmounts(line);
+            if (amounts.isEmpty()) {
                 continue;
             }
+            BigDecimal last = amounts.get(amounts.size() - 1);
 
             if (containsAny(lower, SERVICE_KEYS)) {
-                serviceCharge = price;
+                serviceCharge = last;
                 continue;
             }
             if (containsAny(lower, TOTAL_KEYS)) {
-                // Keep the largest total-looking value (grand total beats subtotal).
-                if (total == null || price.compareTo(total) > 0) {
-                    total = price;
+                if (total == null || last.compareTo(total) > 0) {
+                    total = last;
                 }
                 continue;
             }
@@ -75,8 +77,7 @@ public final class ReceiptTextParser {
                 continue;
             }
 
-            // Treat as a line item: strip the trailing price, parse optional quantity.
-            OcrDtos.ParsedItem item = toItem(line, price);
+            OcrDtos.ParsedItem item = toItem(line, amounts);
             if (item != null) {
                 items.add(item);
             }
@@ -86,12 +87,11 @@ public final class ReceiptTextParser {
     }
 
     private static String detectStoreName(List<String> lines) {
-        // First line that is mostly letters and not a number/price/address marker.
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.ROOT);
             long letters = line.chars().filter(Character::isLetter).count();
             if (letters >= 3
-                    && extractTrailingPrice(line) == null
+                    && extractAmounts(line).isEmpty()
                     && !containsAny(lower, SKIP_KEYS)
                     && !lower.matches(".*\\d{3,}.*")) {
                 return line;
@@ -100,11 +100,12 @@ public final class ReceiptTextParser {
         return lines.isEmpty() ? null : lines.get(0);
     }
 
-    private static OcrDtos.ParsedItem toItem(String line, BigDecimal price) {
-        // Remove the trailing price text.
-        Matcher pm = PRICE.matcher(line);
-        String namePart = pm.find() ? line.substring(0, pm.start()).strip() : line.strip();
+    private static OcrDtos.ParsedItem toItem(String line, List<BigDecimal> amounts) {
+        // Name is whatever precedes the FIRST money amount on the line.
+        Matcher m = MONEY.matcher(line);
+        String namePart = m.find() ? line.substring(0, m.start()).strip() : line.strip();
 
+        // Leading quantity column (e.g. "2  Iced Latte" or "2x Latte").
         int quantity = 1;
         Matcher qm = QTY_PREFIX.matcher(namePart);
         if (qm.find()) {
@@ -117,28 +118,38 @@ public final class ReceiptTextParser {
         }
 
         namePart = namePart.replaceAll("[.:_\\-]+$", "").strip();
-        if (namePart.length() < 2) {
+        if (namePart.length() < 2 || namePart.chars().noneMatch(Character::isLetter)) {
             return null;
         }
-        // Unit price = line price / quantity (line price is the extended amount).
-        BigDecimal unit = quantity > 1
-                ? price.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP)
-                : price;
-        return new OcrDtos.ParsedItem(namePart, quantity, unit);
+
+        // Determine unit price:
+        //  - Two amounts present (Price + Amount columns): first = unit price, last = line total.
+        //  - One amount: it's the line total; divide by quantity for the unit price.
+        BigDecimal unitPrice;
+        if (amounts.size() >= 2) {
+            unitPrice = amounts.get(0);
+        } else {
+            BigDecimal lineTotal = amounts.get(0);
+            unitPrice = quantity > 1
+                    ? lineTotal.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP)
+                    : lineTotal;
+        }
+        return new OcrDtos.ParsedItem(namePart, quantity, unitPrice);
     }
 
-    private static BigDecimal extractTrailingPrice(String line) {
-        Matcher m = PRICE.matcher(line);
-        if (!m.find()) {
-            return null;
+    /** All money amounts on a line, in order. */
+    private static List<BigDecimal> extractAmounts(String line) {
+        List<BigDecimal> out = new ArrayList<>();
+        Matcher m = MONEY.matcher(line);
+        while (m.find()) {
+            String whole = m.group(1).replace(",", "");
+            try {
+                out.add(new BigDecimal(whole + "." + m.group(2)));
+            } catch (NumberFormatException ignored) {
+                // skip malformed
+            }
         }
-        String whole = m.group(1).replace(",", "").replace(".", "");
-        String cents = m.group(2);
-        try {
-            return new BigDecimal(whole + "." + cents);
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return out;
     }
 
     private static boolean containsAny(String haystack, List<String> needles) {
