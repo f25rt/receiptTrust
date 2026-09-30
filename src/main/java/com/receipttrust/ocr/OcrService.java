@@ -31,6 +31,15 @@ public class OcrService {
         this.properties = properties;
     }
 
+    /** Common tessdata locations, tried when the configured path is missing. */
+    private static final String[] FALLBACK_TESSDATA_DIRS = {
+            "/usr/share/tesseract-ocr/5/tessdata",
+            "/usr/share/tesseract-ocr/4.00/tessdata",
+            "/usr/share/tesseract-ocr/tessdata",
+            "/usr/share/tessdata",
+            "/usr/local/share/tessdata"
+    };
+
     public OcrDtos.ReceiptDraft scan(MultipartFile file) {
         if (!properties.isEnabled()) {
             return OcrDtos.ReceiptDraft.empty();
@@ -41,16 +50,18 @@ public class OcrService {
             return OcrDtos.ReceiptDraft.empty();
         }
 
-        File dataDir = new File(properties.getDataPath());
-        if (!dataDir.isDirectory()) {
-            log.warn("OCR tessdata directory not found at {}; returning empty draft",
-                    dataDir.getAbsolutePath());
+        File dataDir = resolveTessdataDir();
+        if (dataDir == null) {
+            log.warn("OCR tessdata directory not found (configured '{}' and no known fallback contained "
+                            + "'{}.traineddata'); returning empty draft",
+                    properties.getDataPath(), properties.getLanguage());
             return OcrDtos.ReceiptDraft.empty();
         }
 
         try {
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(file.getBytes()));
             if (image == null) {
+                log.warn("OCR could not decode uploaded image (content-type {})", contentType);
                 return OcrDtos.ReceiptDraft.empty();
             }
             Tesseract tesseract = new Tesseract();
@@ -58,6 +69,8 @@ public class OcrService {
             tesseract.setLanguage(properties.getLanguage());
             tesseract.setPageSegMode(6); // assume a uniform block of text
             String text = tesseract.doOCR(image);
+            log.info("OCR read {} chars using tessdata at {}",
+                    text == null ? 0 : text.length(), dataDir.getAbsolutePath());
             return ReceiptTextParser.parse(text);
         } catch (IOException e) {
             log.warn("Failed to read image for OCR: {}", e.getMessage());
@@ -70,5 +83,29 @@ public class OcrService {
             log.warn("Tesseract native library unavailable: {}", e.getMessage());
             return OcrDtos.ReceiptDraft.empty();
         }
+    }
+
+    /**
+     * Returns a directory containing {@code <lang>.traineddata}: the configured
+     * path if valid, otherwise the first known system location that has it.
+     */
+    private File resolveTessdataDir() {
+        String lang = properties.getLanguage();
+        File configured = new File(properties.getDataPath());
+        if (hasTraineddata(configured, lang)) {
+            return configured;
+        }
+        for (String candidate : FALLBACK_TESSDATA_DIRS) {
+            File dir = new File(candidate);
+            if (hasTraineddata(dir, lang)) {
+                return dir;
+            }
+        }
+        // Last resort: if the configured dir exists at all, use it (Tess4J may still find data).
+        return configured.isDirectory() ? configured : null;
+    }
+
+    private boolean hasTraineddata(File dir, String lang) {
+        return dir.isDirectory() && new File(dir, lang + ".traineddata").isFile();
     }
 }
