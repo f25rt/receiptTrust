@@ -117,17 +117,36 @@ public final class ReceiptTextParser {
             }
         }
 
-        namePart = namePart.replaceAll("[.:_\\-]+$", "").strip();
+        // Strip leading non-letter noise and trailing punctuation.
+        namePart = namePart.replaceAll("^[^A-Za-z0-9]+", "").replaceAll("[.:_\\-]+$", "").strip();
+
+        // The Qty column is frequently misread by OCR into a short junk token
+        // (e.g. "1" -> "al", "il", "a") stuck before the real item name. When the
+        // line has a leading short token (<=2 chars) followed by a capitalized
+        // word, drop that token.
+        Matcher junk = Pattern.compile("^[A-Za-z]{1,2}\\s+([A-Z].*)$").matcher(namePart);
+        if (junk.matches()) {
+            namePart = junk.group(1).strip();
+        }
+
         if (namePart.length() < 2 || namePart.chars().noneMatch(Character::isLetter)) {
             return null;
         }
 
-        // Determine unit price:
-        //  - Two amounts present (Price + Amount columns): first = unit price, last = line total.
-        //  - One amount: it's the line total; divide by quantity for the unit price.
+        // Determine unit price and quantity:
+        //  - Two amounts (Price + Amount columns): first = unit price, last = line total.
+        //    Derive quantity from amount/price (more reliable than the OCR'd Qty digit).
+        //  - One amount: it's the line total; divide by the parsed quantity.
         BigDecimal unitPrice;
         if (amounts.size() >= 2) {
             unitPrice = amounts.get(0);
+            BigDecimal lineTotal = amounts.get(amounts.size() - 1);
+            if (unitPrice.signum() > 0) {
+                int derived = lineTotal.divide(unitPrice, 0, RoundingMode.HALF_UP).intValue();
+                if (derived >= 1 && derived <= 999) {
+                    quantity = derived;
+                }
+            }
         } else {
             BigDecimal lineTotal = amounts.get(0);
             unitPrice = quantity > 1
