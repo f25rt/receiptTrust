@@ -5,8 +5,9 @@ build/
 # Local toolchain (bundled JDK, not committed)
 .tools/
 
-# Local receipt image storage
-storage/
+# Local receipt image storage (root-level runtime dir only, not source packages)
+/storage/
+/frontend/storage/
 
 # IDE
 .idea/
