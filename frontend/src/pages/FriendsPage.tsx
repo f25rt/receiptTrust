@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assignmentApi, debtApi, friendApi, profileApi } from '../api/services';
+import { debtApi, friendApi, profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useAvatarUrl } from '../auth/useAvatarUrl';
-import type { Dashboard, FriendRequest, PendingAssignment, SearchResult, UserSummary } from '../api/types';
+import type { Dashboard, FriendRequest, SearchResult, UserSummary } from '../api/types';
 import { Avatar, Card, Empty, ErrorBanner, Icon } from '../components/ui';
-import { trustTier, signedMoney, money } from '../lib/format';
+import { trustTier, signedMoney } from '../lib/format';
 import { useDebounce } from '../lib/useDebounce';
+import { usePolling } from '../lib/usePolling';
 
 const TIERS = [
   { min: '300+', label: 'Starter', dot: 'bg-outline' },
@@ -50,7 +51,6 @@ export default function FriendsPage() {
   const myTier = trustTier(profile?.trustScore ?? 500);
   const [friends, setFriends] = useState<UserSummary[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
-  const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([]);
   const [balances, setBalances] = useState<Record<string, PeerBalance>>({});
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -58,16 +58,14 @@ export default function FriendsPage() {
 
   const load = async () => {
     try {
-      const [f, r, dash, pa] = await Promise.all([
+      const [f, r, dash] = await Promise.all([
         friendApi.list(),
         friendApi.incoming(),
         debtApi.dashboard(),
-        assignmentApi.pending(),
       ]);
       setFriends(f.data);
       setRequests(r.data);
       setBalances(buildPeerBalances(dash.data));
-      setPendingAssignments(pa.data);
     } catch (e) {
       setError(apiErrorMessage(e));
     }
@@ -76,6 +74,9 @@ export default function FriendsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Auto-refresh friend list, incoming requests, and balances.
+  usePolling(load, 10000);
 
   // Live search as the user types (debounced).
   const debouncedQuery = useDebounce(query, 300);
@@ -125,52 +126,6 @@ export default function FriendsPage() {
       </div>
 
       <ErrorBanner message={error} />
-
-      {/* Pending assignment confirmations (someone tagged you on a receipt item) */}
-      {pendingAssignments.length > 0 && (
-        <Card className="flex flex-col gap-space-sm border border-secondary/30">
-          <div className="flex items-center gap-space-xs">
-            <Icon name="assignment_ind" className="text-secondary text-[20px]" />
-            <span className="font-headline-sm text-on-surface">
-              Confirm your items ({pendingAssignments.length})
-            </span>
-          </div>
-          <p className="font-body-sm text-on-surface-variant">
-            Someone added you to a receipt. Confirm the item is really yours, or decline it.
-          </p>
-          {pendingAssignments.map((pa) => (
-            <div
-              key={pa.assignmentId}
-              className="flex items-center justify-between gap-space-sm rt-card-inner"
-            >
-              <div className="flex flex-col min-w-0">
-                <span className="font-headline-sm text-on-surface truncate">
-                  {pa.itemName} · {money(pa.shareAmount)}
-                </span>
-                <span className="font-label-sm text-on-surface-variant truncate">
-                  from @{pa.ownerUsername} · {pa.storeName}
-                </span>
-              </div>
-              <div className="flex items-center gap-space-2xs shrink-0">
-                <button
-                  className="w-9 h-9 rounded-full bg-error-container/40 flex items-center justify-center text-error active:scale-95 transition-transform"
-                  aria-label="Decline"
-                  onClick={() => act(() => assignmentApi.decline(pa.assignmentId))}
-                >
-                  <Icon name="close" className="text-[18px]" />
-                </button>
-                <button
-                  className="w-9 h-9 rounded-full bg-tertiary-container/30 flex items-center justify-center text-tertiary active:scale-95 transition-transform"
-                  aria-label="Confirm"
-                  onClick={() => act(() => assignmentApi.confirm(pa.assignmentId))}
-                >
-                  <Icon name="check" className="text-[18px]" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
 
       {/* Search (live/debounced) */}
       <div className="relative">

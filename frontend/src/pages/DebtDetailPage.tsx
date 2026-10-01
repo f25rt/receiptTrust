@@ -13,6 +13,7 @@ import type {
 } from '../api/types';
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { money } from '../lib/format';
+import { usePolling } from '../lib/usePolling';
 
 const METHODS: PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER'];
 
@@ -62,10 +63,30 @@ export default function DebtDetailPage() {
     }
   };
 
+  // Light refresh of the parts that change through interaction (status, payments,
+  // comments). Skips the heavy explanation/history that never change here.
+  const refreshDynamic = async () => {
+    try {
+      const [d, p, c] = await Promise.all([
+        debtApi.get(debtId),
+        paymentApi.list(debtId),
+        debtApi.comments(debtId),
+      ]);
+      setDebt(d.data);
+      setPayments(p.data);
+      setComments(c.data);
+    } catch {
+      // ignore transient poll errors; the next tick retries
+    }
+  };
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debtId]);
+
+  // Auto-refresh comments, payments, and status without a full page reload.
+  usePolling(refreshDynamic, 8000);
 
   const iAmCreditor = explanation?.paidByUsername === profile?.username;
 

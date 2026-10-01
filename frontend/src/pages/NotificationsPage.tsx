@@ -3,6 +3,7 @@ import { notificationApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import type { Notification, NotificationType } from '../api/types';
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
+import { usePolling } from '../lib/usePolling';
 
 const META: Record<NotificationType, { icon: string; color: string }> = {
   FRIEND_REQUEST_RECEIVED: { icon: 'person_add', color: 'text-secondary' },
@@ -36,6 +37,9 @@ export default function NotificationsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Auto-refresh notifications so new activity appears without a manual refresh.
+  usePolling(load, 10000);
 
   const markRead = async (id: number) => {
     try {

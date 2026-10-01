@@ -1,25 +1,48 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { debtApi } from '../api/services';
+import { assignmentApi, debtApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { Dashboard, DebtSummary } from '../api/types';
+import type { Dashboard, DebtSummary, PendingAssignment } from '../api/types';
 import { Avatar, Card, ErrorBanner, Empty, Icon } from '../components/ui';
 import { money, signedMoney, trustTier, MAX_TRUST_SCORE } from '../lib/format';
+import { usePolling } from '../lib/usePolling';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<Dashboard | null>(null);
+  const [pending, setPending] = useState<PendingAssignment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'owed' | 'owe'>('owed');
 
-  useEffect(() => {
+  const load = () => {
     debtApi
       .dashboard()
       .then((r) => setData(r.data))
       .catch((e) => setError(apiErrorMessage(e)));
+    assignmentApi
+      .pending()
+      .then((r) => setPending(r.data))
+      .catch(() => setPending([]));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
+
+  // Keep balances and pending approvals fresh without a manual refresh.
+  usePolling(load, 10000);
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await fn();
+      load();
+    } catch (e) {
+      setError(apiErrorMessage(e));
+    }
+  };
 
   const score = profile?.trustScore ?? 500;
   const tier = trustTier(score);
@@ -164,13 +187,18 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setTab('owe')}
-                  className={`px-space-sm py-1 rounded-full font-label-md transition-all ${
+                  className={`relative px-space-sm py-1 rounded-full font-label-md transition-all ${
                     tab === 'owe'
                       ? 'bg-primary-container text-on-primary'
                       : 'text-on-surface-variant'
                   }`}
                 >
                   I Owe ({data.iOwe.length})
+                  {pending.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-secondary text-on-secondary text-[10px] font-label-sm flex items-center justify-center">
+                      {pending.length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -187,15 +215,69 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )
-            ) : data.iOwe.length === 0 ? (
-              <Card>
-                <Empty text="You don't owe anyone. Nice." icon="check_circle" />
-              </Card>
             ) : (
               <div className="flex flex-col gap-space-sm">
-                {data.iOwe.map((d) => (
-                  <LedgerRow key={d.debtId} debt={d} owed={false} onClick={() => navigate(`/debts/${d.debtId}`)} />
-                ))}
+                {/* Items someone assigned to you that need your approval before they
+                    become debts you owe. */}
+                {pending.length > 0 && (
+                  <Card className="flex flex-col gap-space-sm border border-secondary/30">
+                    <div className="flex items-center gap-space-xs">
+                      <Icon name="assignment_ind" className="text-secondary text-[20px]" />
+                      <span className="font-headline-sm text-on-surface">
+                        Awaiting your approval ({pending.length})
+                      </span>
+                    </div>
+                    <p className="font-body-sm text-on-surface-variant">
+                      Someone assigned these items to you. Approve to accept the debt, or decline to remove it.
+                    </p>
+                    {pending.map((pa) => (
+                      <div
+                        key={pa.assignmentId}
+                        className="flex items-center justify-between gap-space-sm rt-card-inner"
+                      >
+                        <div className="flex items-center gap-space-sm min-w-0">
+                          <Avatar name={pa.ownerUsername} size={40} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-headline-sm text-on-surface truncate">
+                              {pa.itemName} · {money(pa.shareAmount)}
+                            </span>
+                            <span className="font-label-sm text-on-surface-variant truncate">
+                              from @{pa.ownerUsername} · {pa.storeName}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-space-2xs shrink-0">
+                          <button
+                            className="w-9 h-9 rounded-full bg-error-container/40 flex items-center justify-center text-error active:scale-95 transition-transform"
+                            aria-label="Decline"
+                            onClick={() => act(() => assignmentApi.decline(pa.assignmentId))}
+                          >
+                            <Icon name="close" className="text-[18px]" />
+                          </button>
+                          <button
+                            className="w-9 h-9 rounded-full bg-tertiary-container/30 flex items-center justify-center text-tertiary active:scale-95 transition-transform"
+                            aria-label="Approve"
+                            onClick={() => act(() => assignmentApi.confirm(pa.assignmentId))}
+                          >
+                            <Icon name="check" className="text-[18px]" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </Card>
+                )}
+
+                {data.iOwe.length === 0 ? (
+                  pending.length === 0 && (
+                    <Card>
+                      <Empty text="You don't owe anyone. Nice." icon="check_circle" />
+                    </Card>
+                  )
+                ) : (
+                  data.iOwe.map((d) => (
+                    <LedgerRow key={d.debtId} debt={d} owed={false} onClick={() => navigate(`/debts/${d.debtId}`)} />
+                  ))
+                )}
               </div>
             )}
           </div>

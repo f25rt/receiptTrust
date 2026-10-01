@@ -115,9 +115,19 @@ public class AssignmentService {
         ItemAssignment assignment = requirePendingForAssignee(assignee, assignmentId);
         assignment.setConfirmed(true);
         assignmentRepository.save(assignment);
-        User owner = assignment.getReceiptItem().getReceipt().getOwner();
-        notificationService.notify(owner, NotificationType.ASSIGNMENT_CONFIRMED,
-                assignee.getUsername() + " confirmed \"" + assignment.getReceiptItem().getName() + "\" is theirs.");
+
+        Receipt receipt = assignment.getReceiptItem().getReceipt();
+        User owner = receipt.getOwner();
+        String itemName = assignment.getReceiptItem().getName();
+
+        // If this was the last outstanding confirmation, the receipt can now be
+        // finalized — tell the owner it's ready.
+        boolean allConfirmed = assignmentRepository.findUnconfirmedByReceipt(receipt).isEmpty();
+        String message = allConfirmed
+                ? assignee.getUsername() + " confirmed \"" + itemName + "\". All items are confirmed — "
+                        + "the receipt at " + receipt.getStoreName() + " is ready to finalize."
+                : assignee.getUsername() + " confirmed \"" + itemName + "\" is theirs.";
+        notificationService.notify(owner, NotificationType.ASSIGNMENT_CONFIRMED, message);
     }
 
     /**

@@ -4,6 +4,7 @@ import { messageApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import type { DirectMessage } from '../api/types';
 import { Avatar, Card, Empty, ErrorBanner, Icon } from '../components/ui';
+import { usePolling } from '../lib/usePolling';
 
 export default function ChatPage() {
   const { username = '' } = useParams();
@@ -25,11 +26,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     load();
-    // Light polling so a reply shows up without a manual refresh.
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
+
+  // Light polling so a reply shows up without a manual refresh.
+  usePolling(load, 5000);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
