@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useAvatarUrl } from '../auth/useAvatarUrl';
 import { Avatar, Card, ErrorBanner, Icon } from '../components/ui';
 import { trustTier, reputationLabel, nextTier, pointsToNextTier } from '../lib/format';
 
@@ -38,6 +39,7 @@ function ReputationRing({ score }: { score: number }) {
 export default function ProfilePage() {
   const { profile, refreshProfile, logout } = useAuth();
   const navigate = useNavigate();
+  const avatarUrl = useAvatarUrl();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,7 +74,7 @@ export default function ProfilePage() {
       {/* Identity */}
       <div className="flex flex-col items-center lg:flex-row lg:items-center pt-space-md gap-space-sm lg:gap-space-md">
         <div className="relative">
-          <Avatar name={profile.fullName} size={80} imagePath={profile.profileImagePath} />
+          <Avatar name={profile.fullName} size={80} imagePath={avatarUrl} />
           <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-secondary ring-4 ring-surface flex items-center justify-center text-on-secondary">
             <Icon name="verified" className="text-[14px]" />
           </span>

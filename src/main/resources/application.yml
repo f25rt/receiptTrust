@@ -20,8 +20,8 @@ spring:
     baseline-on-migrate: true
   servlet:
     multipart:
-      max-file-size: ${MAX_FILE_SIZE:10MB}
-      max-request-size: ${MAX_REQUEST_SIZE:12MB}
+      max-file-size: ${MAX_FILE_SIZE:5MB}
+      max-request-size: ${MAX_REQUEST_SIZE:6MB}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -38,6 +38,9 @@ receipttrust:
   storage:
     receipt-dir: ${RECEIPT_DIR:./storage/receipts}
     profile-dir: ${PROFILE_DIR:./storage/profiles}
+    # false (default): OCR-read receipt images but do NOT save them (debt backed by
+    # extracted items). true: persist the image (needs a disk / object storage).
+    persist-receipt-image: ${RECEIPT_IMAGE_PERSIST:false}
   debt:
     default-term-days: ${DEBT_TERM_DAYS:14}
   trust:
@@ -57,6 +60,12 @@ receipttrust:
     facebook:
       app-id: ${FACEBOOK_APP_ID:}
       app-secret: ${FACEBOOK_APP_SECRET:}
+  image-expiry:
+    # true = testing (auto-delete images on expiry); false = live (keep images)
+    enabled: ${IMAGE_EXPIRY_ENABLED:false}
+    receipt-ttl-seconds: ${RECEIPT_IMAGE_TTL_SECONDS:60}
+    profile-ttl-seconds: ${PROFILE_IMAGE_TTL_SECONDS:3600}
+    sweep-interval-ms: ${IMAGE_EXPIRY_SWEEP_INTERVAL_MS:30000}
 
 management:
   endpoints:

@@ -9,11 +9,13 @@ import com.receipttrust.notification.NotificationType;
 import com.receipttrust.receipt.Receipt;
 import com.receipttrust.receipt.ReceiptRepository;
 import com.receipttrust.receipt.ReceiptService;
+import com.receipttrust.trust.TrustScoreService;
 import com.receipttrust.user.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,19 +31,25 @@ public class DebtService {
     private final ReceiptService receiptService;
     private final NotificationService notificationService;
     private final DebtProperties debtProperties;
+    private final TrustScoreService trustScoreService;
+    private final DebtCommentRepository commentRepository;
 
     public DebtService(DebtRepository debtRepository,
                        ItemAssignmentRepository assignmentRepository,
                        ReceiptRepository receiptRepository,
                        ReceiptService receiptService,
                        NotificationService notificationService,
-                       DebtProperties debtProperties) {
+                       DebtProperties debtProperties,
+                       TrustScoreService trustScoreService,
+                       DebtCommentRepository commentRepository) {
         this.debtRepository = debtRepository;
         this.assignmentRepository = assignmentRepository;
         this.receiptRepository = receiptRepository;
         this.receiptService = receiptService;
         this.notificationService = notificationService;
         this.debtProperties = debtProperties;
+        this.trustScoreService = trustScoreService;
+        this.commentRepository = commentRepository;
     }
 
     /**
@@ -85,8 +93,8 @@ public class DebtService {
             // Only registered debtors get an in-app notification; labels have no account.
             if (acc.debtor != null) {
                 notificationService.notify(acc.debtor, NotificationType.DEBT_CREATED,
-                        "You owe " + owner.getUsername() + " " + acc.total
-                                + " for receipt at " + receipt.getStoreName());
+                        owner.getUsername() + " tagged you in a debt of " + acc.total
+                                + " for the receipt at " + receipt.getStoreName());
             }
         }
 
@@ -131,6 +139,75 @@ public class DebtService {
         boolean counterpartyIsLabel = isCreditor && debt.isLabelDebt();
         return new DebtDtos.DebtSummary(debt.getId(), counterparty, counterpartyIsLabel,
                 debt.getOutstandingAmount(), debt.getOriginalAmount(), debt.getStatus(), debt.getDueDate());
+    }
+
+    /**
+     * Creditor marks the debt as fully paid. Because only the lender approves,
+     * this settles immediately (no debtor approval), applies the trust update,
+     * and notifies the debtor.
+     */
+    @Transactional
+    public DebtDtos.DebtSummary markAsPaidByCreditor(User user, Long debtId) {
+        Debt debt = require(debtId);
+        if (!debt.getCreditor().getId().equals(user.getId())) {
+            throw new ApiExceptions.ForbiddenException("Only the lender can mark this debt as paid");
+        }
+        if (debt.getStatus() == DebtStatus.SETTLED) {
+            throw new ApiExceptions.ConflictException("Debt is already settled");
+        }
+        debt.setOutstandingAmount(BigDecimal.ZERO);
+        debt.setStatus(DebtStatus.SETTLED);
+        debt.setSettledAt(Instant.now());
+        debtRepository.save(debt);
+
+        trustScoreService.onDebtSettled(debt);
+
+        if (debt.getDebtor() != null) {
+            notificationService.notify(debt.getDebtor(), NotificationType.DEBT_SETTLED,
+                    user.getUsername() + " marked your debt as fully paid");
+        }
+        return new DebtDtos.DebtSummary(debt.getId(), debt.debtorDisplayName(), debt.isLabelDebt(),
+                debt.getOutstandingAmount(), debt.getOriginalAmount(), debt.getStatus(), debt.getDueDate());
+    }
+
+    @Transactional
+    public DebtDtos.CommentResponse addComment(User user, Long debtId, String body) {
+        Debt debt = requireParticipant(user, debtId);
+        String text = body == null ? "" : body.strip();
+        if (text.isEmpty()) {
+            throw new ApiExceptions.ValidationException("Comment cannot be empty");
+        }
+        DebtComment comment = commentRepository.save(new DebtComment(debt, user, text));
+
+        // Notify the other participant.
+        boolean authorIsCreditor = debt.getCreditor().getId().equals(user.getId());
+        User recipient = authorIsCreditor ? debt.getDebtor() : debt.getCreditor();
+        if (recipient != null) {
+            notificationService.notify(recipient, NotificationType.DEBT_COMMENT,
+                    user.getUsername() + " commented on debt #" + debt.getId() + ": " + preview(text));
+        }
+        return toCommentResponse(comment, user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DebtDtos.CommentResponse> listComments(User user, Long debtId) {
+        Debt debt = requireParticipant(user, debtId);
+        return commentRepository.findByDebtOrderByCreatedAtAsc(debt).stream()
+                .map(c -> toCommentResponse(c, user))
+                .toList();
+    }
+
+    private DebtDtos.CommentResponse toCommentResponse(DebtComment c, User viewer) {
+        return new DebtDtos.CommentResponse(
+                c.getId(),
+                c.getAuthor().getUsername(),
+                c.getAuthor().getId().equals(viewer.getId()),
+                c.getBody(),
+                c.getCreatedAt());
+    }
+
+    private static String preview(String text) {
+        return text.length() > 60 ? text.substring(0, 57) + "..." : text;
     }
 
     /** Accumulates a single debtor's (user or label) item shares and running total. */

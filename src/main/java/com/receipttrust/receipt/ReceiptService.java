@@ -21,15 +21,18 @@ public class ReceiptService {
     private final ReceiptItemRepository itemRepository;
     private final DebtRepository debtRepository;
     private final FileStorageService fileStorageService;
+    private final com.receipttrust.config.StorageProperties storageProperties;
 
     public ReceiptService(ReceiptRepository receiptRepository,
                           ReceiptItemRepository itemRepository,
                           DebtRepository debtRepository,
-                          FileStorageService fileStorageService) {
+                          FileStorageService fileStorageService,
+                          com.receipttrust.config.StorageProperties storageProperties) {
         this.receiptRepository = receiptRepository;
         this.itemRepository = itemRepository;
         this.debtRepository = debtRepository;
         this.fileStorageService = fileStorageService;
+        this.storageProperties = storageProperties;
     }
 
     @Transactional
@@ -41,10 +44,12 @@ public class ReceiptService {
         if (purchaseDate == null) {
             throw new ApiExceptions.ValidationException("Purchase date is required");
         }
-        // Image is optional: only store it when a non-empty file is provided.
+        // Image is optional. When persistReceiptImage is false (default), the image
+        // is read for OCR during the scan step but NOT stored here — the debt is
+        // backed by its itemized data. When true, store it for later viewing.
         String imagePath = null;
         String imageContentType = null;
-        if (image != null && !image.isEmpty()) {
+        if (image != null && !image.isEmpty() && storageProperties.isPersistReceiptImage()) {
             StoredFile stored = fileStorageService.storeReceiptImage(image);
             imagePath = stored.relativePath();
             imageContentType = stored.contentType();

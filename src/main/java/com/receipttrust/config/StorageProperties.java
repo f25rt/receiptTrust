@@ -8,6 +8,21 @@ public class StorageProperties {
     private String receiptDir = "./storage/receipts";
     private String profileDir = "./storage/profiles";
 
+    /**
+     * When false (default), uploaded receipt images are OCR'd but NOT persisted —
+     * the debt is backed by its extracted itemized data instead of the photo.
+     * Set true to store the image (e.g. with real object storage or a disk).
+     */
+    private boolean persistReceiptImage = false;
+
+    public boolean isPersistReceiptImage() {
+        return persistReceiptImage;
+    }
+
+    public void setPersistReceiptImage(boolean persistReceiptImage) {
+        this.persistReceiptImage = persistReceiptImage;
+    }
+
     public String getReceiptDir() {
         return receiptDir;
     }

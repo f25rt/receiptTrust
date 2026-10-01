@@ -64,6 +64,12 @@ public class Receipt extends BaseEntity {
         return imagePath != null;
     }
 
+    /** Clears the stored image reference (used when the image file is expired/deleted). */
+    public void clearImage() {
+        this.imagePath = null;
+        this.imageContentType = null;
+    }
+
     public User getOwner() {
         return owner;
     }

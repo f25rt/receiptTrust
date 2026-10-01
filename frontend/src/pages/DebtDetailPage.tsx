@@ -4,6 +4,7 @@ import { debtApi, paymentApi, receiptApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type {
+  DebtComment,
   DebtExplanation,
   DebtHistory,
   DebtSummary,
@@ -34,6 +35,8 @@ export default function DebtDetailPage() {
   const [explanation, setExplanation] = useState<DebtExplanation | null>(null);
   const [history, setHistory] = useState<DebtHistory | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [comments, setComments] = useState<DebtComment[]>([]);
+  const [commentDraft, setCommentDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const [amount, setAmount] = useState('');
@@ -42,16 +45,18 @@ export default function DebtDetailPage() {
 
   const load = async () => {
     try {
-      const [d, ex, h, p] = await Promise.all([
+      const [d, ex, h, p, c] = await Promise.all([
         debtApi.get(debtId),
         debtApi.explanation(debtId),
         debtApi.history(debtId),
         paymentApi.list(debtId),
+        debtApi.comments(debtId),
       ]);
       setDebt(d.data);
       setExplanation(ex.data);
       setHistory(h.data);
       setPayments(p.data);
+      setComments(c.data);
     } catch (e) {
       setError(apiErrorMessage(e));
     }
@@ -83,6 +88,44 @@ export default function DebtDetailPage() {
       if (approve) await paymentApi.approve(paymentId);
       else await paymentApi.reject(paymentId);
       await Promise.all([load(), refreshProfile()]);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  };
+
+  // Creditor marks the debt fully paid -> settles immediately.
+  const markPaid = async () => {
+    setError(null);
+    try {
+      await debtApi.markPaid(debtId);
+      await Promise.all([load(), refreshProfile()]);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  };
+
+  // Debtor one-tap: submit the full outstanding amount for the lender to approve.
+  const markFullyPaid = async () => {
+    if (!debt) return;
+    setError(null);
+    try {
+      await paymentApi.submit(debtId, debt.outstandingAmount, method, 'Marked as fully paid');
+      await load();
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  };
+
+  const postComment = async (e: FormEvent) => {
+    e.preventDefault();
+    const body = commentDraft.trim();
+    if (!body) return;
+    setError(null);
+    try {
+      await debtApi.addComment(debtId, body);
+      setCommentDraft('');
+      const c = await debtApi.comments(debtId);
+      setComments(c.data);
     } catch (err) {
       setError(apiErrorMessage(err));
     }
@@ -193,10 +236,31 @@ export default function DebtDetailPage() {
         )}
       </Card>
 
+      {/* Mark as paid (lender only) */}
+      {iAmCreditor && !settled && (
+        <Card className="flex flex-col gap-space-sm">
+          <span className="font-headline-sm text-on-surface">Received payment?</span>
+          <p className="font-body-sm text-on-surface-variant">
+            As the lender, mark this debt as fully paid. It settles immediately — no approval needed.
+          </p>
+          <button className="btn-primary w-full py-3" onClick={markPaid}>
+            <Icon name="task_alt" className="text-[18px]" /> Mark as paid
+          </button>
+        </Card>
+      )}
+
       {/* Submit payment (debtor only) */}
       {!iAmCreditor && !settled && (
         <Card className="flex flex-col gap-space-md">
           <span className="font-headline-sm text-on-surface">Submit a payment</span>
+          <button type="button" className="btn-glass w-full py-3" onClick={markFullyPaid}>
+            <Icon name="task_alt" className="text-[18px]" /> Mark as fully paid ({money(debt.outstandingAmount)})
+          </button>
+          <div className="flex items-center gap-space-sm">
+            <span className="h-px flex-1 bg-white/[0.08]" />
+            <span className="font-label-sm text-on-surface-variant">or pay partially</span>
+            <span className="h-px flex-1 bg-white/[0.08]" />
+          </div>
           <form className="flex flex-col gap-space-md" onSubmit={submitPayment}>
             <div>
               <label className="field-label">Amount</label>
@@ -319,6 +383,49 @@ export default function DebtDetailPage() {
         ) : (
           <Empty text="No history." icon="timeline" />
         )}
+      </Card>
+
+      {/* Comments / communication */}
+      <Card className="flex flex-col gap-space-md">
+        <div className="flex items-center gap-space-xs">
+          <Icon name="forum" className="text-secondary text-[20px]" />
+          <span className="font-headline-sm text-on-surface">Comments</span>
+        </div>
+
+        {comments.length === 0 ? (
+          <Empty text="No comments yet. Start the conversation." icon="chat" />
+        ) : (
+          <div className="flex flex-col gap-space-sm">
+            {comments.map((c) => (
+              <div
+                key={c.id}
+                className={`flex flex-col gap-space-2xs max-w-[85%] rounded-lg px-space-sm py-space-xs ${
+                  c.mine
+                    ? 'self-end bg-primary-container/20 items-end'
+                    : 'self-start bg-surface-container-high'
+                }`}
+              >
+                <span className="font-label-sm text-on-surface-variant">
+                  {c.mine ? 'You' : c.authorUsername} · {new Date(c.createdAt).toLocaleString()}
+                </span>
+                <span className="font-body-md text-on-surface">{c.body}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form className="flex items-end gap-space-sm" onSubmit={postComment}>
+          <input
+            className="field-input flex-1"
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            placeholder="Write a comment…"
+            maxLength={1000}
+          />
+          <button className="btn-primary px-space-md py-3" disabled={!commentDraft.trim()} aria-label="Send comment">
+            <Icon name="send" className="text-[18px]" />
+          </button>
+        </form>
       </Card>
     </div>
   );

@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useAvatarUrl } from '../auth/useAvatarUrl';
 import { Avatar, Icon } from './ui';
 import { trustTier } from '../lib/format';
 
@@ -15,6 +16,7 @@ export default function Layout() {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
   const tier = trustTier(profile?.trustScore ?? 500);
+  const avatarUrl = useAvatarUrl();
 
   const handleLogout = async () => {
     await logout();
@@ -47,7 +49,7 @@ export default function Layout() {
           <div className="flex items-center gap-space-sm shrink-0">
             {trustPill}
             <button onClick={() => navigate('/profile')} className="relative">
-              <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={profile?.profileImagePath ?? null} />
+              <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={avatarUrl} />
               <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-tertiary ring-2 ring-surface" />
             </button>
           </div>
@@ -93,7 +95,7 @@ export default function Layout() {
               <Icon name="notifications" className="text-[18px]" />
             </button>
             <button onClick={() => navigate('/profile')} className="flex items-center gap-space-2xs">
-              <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={profile?.profileImagePath ?? null} />
+              <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={avatarUrl} />
             </button>
             <button
               aria-label="Log out"

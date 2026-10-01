@@ -27,7 +27,8 @@ import java.util.List;
         TrustProperties.class,
         CorsProperties.class,
         OcrProperties.class,
-        SocialAuthProperties.class
+        SocialAuthProperties.class,
+        ImageExpiryProperties.class
 })
 public class SecurityConfig {
 

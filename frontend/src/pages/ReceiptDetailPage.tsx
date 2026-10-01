@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { friendApi, receiptApi } from '../api/services';
+import { friendApi, profileApi, receiptApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
-import type { AssignTarget, Assignment, Receipt, ReceiptItem, SplitType, UserSummary } from '../api/types';
+import type { AssignTarget, Assignment, Receipt, ReceiptItem, SearchResult, SplitType, UserSummary } from '../api/types';
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { money } from '../lib/format';
+import { useDebounce } from '../lib/useDebounce';
 
 export default function ReceiptDetailPage() {
   const { id } = useParams();
@@ -285,20 +286,59 @@ function ItemCard({
   const [labelDraft, setLabelDraft] = useState('');
   const [open, setOpen] = useState(false);
 
+  // DB-wide debtor search (not just existing friends).
+  const [userQuery, setUserQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debouncedUserQuery = useDebounce(userQuery, 300);
+  // Display names for picked users so non-friends still render as removable pills.
+  const [pickedNames, setPickedNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const q = debouncedUserQuery.trim();
+    if (q.length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    profileApi
+      .search(q)
+      .then((r) => {
+        if (!cancelled) setSearchResults(r.data);
+      })
+      .catch(() => {
+        if (!cancelled) setSearchResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedUserQuery]);
+
   const reset = () => {
     setPickedUsers([]);
+    setPickedNames({});
     setLabels([]);
     setLabelDraft('');
+    setUserQuery('');
+    setSearchResults([]);
   };
 
-  const toggleUser = (username: string) => {
+  const toggleUser = (username: string, displayName?: string) => {
+    // In any mode, clicking a currently-selected user removes it.
+    if (pickedUsers.includes(username)) {
+      setPickedUsers((prev) => prev.filter((u) => u !== username));
+      return;
+    }
+    setPickedNames((prev) => ({ ...prev, [username]: displayName ?? username }));
     if (split === 'INDIVIDUAL') {
       setPickedUsers([username]);
       setLabels([]);
     } else {
-      setPickedUsers((prev) =>
-        prev.includes(username) ? prev.filter((u) => u !== username) : [...prev, username]
-      );
+      setPickedUsers((prev) => [...prev, username]);
     }
   };
 
@@ -397,7 +437,7 @@ function ItemCard({
                       return (
                         <button
                           key={f.id}
-                          onClick={() => toggleUser(f.username)}
+                          onClick={() => toggleUser(f.username, f.fullName)}
                           className={`pill px-space-sm py-1.5 border transition-colors ${
                             on
                               ? 'bg-primary-container text-on-primary border-transparent'
@@ -412,6 +452,73 @@ function ItemCard({
                   </div>
                 </div>
               )}
+
+              {/* Search any registered user (DB-wide, debounced) */}
+              <div className="flex flex-col gap-space-2xs">
+                <span className="field-label mb-0">Search any user</span>
+                <div className="relative">
+                  <Icon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]"
+                  />
+                  <input
+                    className="field-input pl-9 pr-9"
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    placeholder="@username or email"
+                  />
+                  {searching && (
+                    <Icon
+                      name="progress_activity"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] animate-spin"
+                    />
+                  )}
+                </div>
+                {debouncedUserQuery.trim().length > 0 && searchResults.length === 0 && !searching && (
+                  <span className="font-label-sm text-on-surface-variant px-1">No users found.</span>
+                )}
+                {searchResults.length > 0 && (
+                  <div className="flex flex-col gap-space-2xs max-h-48 overflow-y-auto rt-card-inner p-space-2xs">
+                    {searchResults.map((u) => {
+                      const on = pickedUsers.includes(u.username);
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => toggleUser(u.username, u.fullName)}
+                          className={`flex items-center justify-between gap-space-sm px-space-sm py-space-2xs rounded-lg transition-colors ${
+                            on ? 'bg-primary-container/60' : 'hover:bg-surface-container-high'
+                          }`}
+                        >
+                          <span className="flex flex-col items-start min-w-0">
+                            <span className="font-label-md text-on-surface truncate">{u.fullName}</span>
+                            <span className="font-label-sm text-on-surface-variant truncate">@{u.username}</span>
+                          </span>
+                          <Icon
+                            name={on ? 'check_circle' : 'add_circle'}
+                            className={`text-[18px] shrink-0 ${on ? 'text-primary' : 'text-on-surface-variant'}`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Selected users not shown in the friends list */}
+                {pickedUsers.filter((u) => !friends.some((f) => f.username === u)).length > 0 && (
+                  <div className="flex flex-wrap gap-space-2xs">
+                    {pickedUsers
+                      .filter((u) => !friends.some((f) => f.username === u))
+                      .map((u) => (
+                        <span key={u} className="pill bg-primary-container text-on-primary px-space-sm py-1.5">
+                          <Icon name="person" className="text-[12px]" />
+                          {pickedNames[u] ?? u}
+                          <button onClick={() => toggleUser(u)} aria-label="Remove">
+                            <Icon name="close" className="text-[12px]" />
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </div>
 
               {/* Non-registered labels */}
               <div className="flex flex-col gap-space-2xs">

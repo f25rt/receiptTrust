@@ -17,4 +17,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findTop20ByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
             String usernamePart, String emailPart);
+
+    /** Users whose profile image was uploaded before the cutoff. */
+    @org.springframework.data.jpa.repository.Query("""
+            select u from User u
+            where u.profileImagePath is not null
+              and u.profileImageUploadedAt is not null
+              and u.profileImageUploadedAt < :cutoff
+            """)
+    List<User> findProfileImageOlderThan(
+            @org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff);
 }

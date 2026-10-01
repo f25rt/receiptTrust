@@ -159,6 +159,14 @@ export interface DebtHistory {
   events: TimelineEvent[];
 }
 
+export interface DebtComment {
+  id: number;
+  authorUsername: string;
+  mine: boolean;
+  body: string;
+  createdAt: string;
+}
+
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'GCASH' | 'MAYA' | 'OTHER';
 export type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -182,7 +190,9 @@ export type NotificationType =
   | 'PAYMENT_SUBMITTED'
   | 'PAYMENT_APPROVED'
   | 'PAYMENT_REJECTED'
-  | 'DEBT_SETTLED';
+  | 'DEBT_SETTLED'
+  | 'DEBT_MARKED_PAID'
+  | 'DEBT_COMMENT';
 
 export interface Notification {
   id: number;

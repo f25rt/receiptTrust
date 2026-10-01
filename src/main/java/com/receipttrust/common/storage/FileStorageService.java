@@ -47,6 +47,34 @@ public class FileStorageService {
         return open(receiptDir, relativePath);
     }
 
+    public InputStream openProfileImage(String relativePath) {
+        return open(profileDir, relativePath);
+    }
+
+    /** Deletes a stored receipt image; safe to call if already gone. */
+    public void deleteReceiptImage(String relativePath) {
+        delete(receiptDir, relativePath);
+    }
+
+    /** Deletes a stored profile image; safe to call if already gone. */
+    public void deleteProfileImage(String relativePath) {
+        delete(profileDir, relativePath);
+    }
+
+    private void delete(Path dir, String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+        try {
+            Path target = dir.resolve(relativePath).normalize();
+            if (target.startsWith(dir)) {
+                Files.deleteIfExists(target);
+            }
+        } catch (IOException ignored) {
+            // best-effort cleanup; the DB reference is cleared regardless
+        }
+    }
+
     private void validateReceiptType(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ApiExceptions.ValidationException("Receipt image is required");

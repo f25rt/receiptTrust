@@ -69,4 +69,19 @@ public final class DebtDtos {
             List<TimelineEvent> events
     ) {
     }
+
+    public record CommentRequest(
+            @jakarta.validation.constraints.NotBlank
+            @jakarta.validation.constraints.Size(max = 1000) String body
+    ) {
+    }
+
+    public record CommentResponse(
+            Long id,
+            String authorUsername,
+            boolean mine,
+            String body,
+            Instant createdAt
+    ) {
+    }
 }

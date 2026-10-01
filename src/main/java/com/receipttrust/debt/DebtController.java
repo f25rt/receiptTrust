@@ -2,10 +2,15 @@ package com.receipttrust.debt;
 
 import com.receipttrust.security.CurrentUserService;
 import com.receipttrust.user.User;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/debts")
@@ -42,5 +47,22 @@ public class DebtController {
     @GetMapping("/{id}/history")
     public DebtDtos.HistoryResponse history(@PathVariable Long id) {
         return debtQueryService.history(currentUserService.require(), id);
+    }
+
+    /** Lender marks the debt as fully paid (settles immediately). */
+    @PostMapping("/{id}/mark-paid")
+    public DebtDtos.DebtSummary markPaid(@PathVariable Long id) {
+        return debtService.markAsPaidByCreditor(currentUserService.require(), id);
+    }
+
+    @GetMapping("/{id}/comments")
+    public List<DebtDtos.CommentResponse> comments(@PathVariable Long id) {
+        return debtService.listComments(currentUserService.require(), id);
+    }
+
+    @PostMapping("/{id}/comments")
+    public DebtDtos.CommentResponse addComment(@PathVariable Long id,
+                                               @Valid @RequestBody DebtDtos.CommentRequest request) {
+        return debtService.addComment(currentUserService.require(), id, request.body());
     }
 }

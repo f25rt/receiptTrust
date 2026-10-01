@@ -80,6 +80,21 @@ public class UserController {
         return me();
     }
 
+    /** Streams the current user's profile image (or 404 if none / expired). */
+    @GetMapping("/api/me/profile-image")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> myProfileImage() {
+        User me = currentUserService.require();
+        if (me.getProfileImagePath() == null) {
+            throw new ApiExceptions.ResourceNotFoundException("No profile image");
+        }
+        var resource = new org.springframework.core.io.InputStreamResource(
+                fileStorageService.openProfileImage(me.getProfileImagePath()));
+        String ct = me.getProfileImagePath().endsWith(".png") ? "image/png" : "image/jpeg";
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(ct))
+                .body(resource);
+    }
+
     /** Set/enable a local password (lets social-login users also use password sign-in). */
     @PostMapping("/api/me/password")
     public UserDtos.MyProfileResponse setPassword(

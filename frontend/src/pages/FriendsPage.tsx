@@ -1,11 +1,13 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { debtApi, friendApi, profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useAvatarUrl } from '../auth/useAvatarUrl';
 import type { Dashboard, FriendRequest, SearchResult, UserSummary } from '../api/types';
 import { Avatar, Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { trustTier, signedMoney } from '../lib/format';
+import { useDebounce } from '../lib/useDebounce';
 
 const TIERS = [
   { min: '300+', label: 'Starter', dot: 'bg-outline' },
@@ -44,6 +46,7 @@ function buildPeerBalances(dash: Dashboard): Record<string, PeerBalance> {
 export default function FriendsPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const avatarUrl = useAvatarUrl();
   const myTier = trustTier(profile?.trustScore ?? 500);
   const [friends, setFriends] = useState<UserSummary[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -71,16 +74,33 @@ export default function FriendsPage() {
     load();
   }, []);
 
-  const search = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    try {
-      const r = await profileApi.search(query);
-      setResults(r.data);
-    } catch (e2) {
-      setError(apiErrorMessage(e2));
+  // Live search as the user types (debounced).
+  const debouncedQuery = useDebounce(query, 300);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = debouncedQuery.trim();
+    if (q.length < 1) {
+      setResults([]);
+      return;
     }
-  };
+    let cancelled = false;
+    setSearching(true);
+    profileApi
+      .search(q)
+      .then((r) => {
+        if (!cancelled) setResults(r.data);
+      })
+      .catch((e2) => {
+        if (!cancelled) setError(apiErrorMessage(e2));
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setError(null);
@@ -103,22 +123,34 @@ export default function FriendsPage() {
 
       <ErrorBanner message={error} />
 
-      {/* Search */}
-      <form onSubmit={search} className="relative">
+      {/* Search (live/debounced) */}
+      <div className="relative">
         <Icon
           name="search"
           className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]"
         />
         <input
-          className="field-input pl-10"
+          className="field-input pl-10 pr-10"
           placeholder="Search by @username or email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-      </form>
+        {searching && (
+          <Icon
+            name="progress_activity"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] animate-spin"
+          />
+        )}
+      </div>
 
       <div className="flex flex-col gap-space-lg lg:grid lg:grid-cols-3 lg:gap-space-lg lg:items-start">
         <div className="flex flex-col gap-space-lg lg:col-span-2">
+      {debouncedQuery.trim().length > 0 && results.length === 0 && !searching && (
+        <Card>
+          <Empty text={`No users match "${debouncedQuery.trim()}".`} icon="person_search" />
+        </Card>
+      )}
+
       {results.length > 0 && (
         <Card className="flex flex-col gap-space-sm">
           <span className="font-label-md text-on-surface-variant uppercase tracking-wider">
@@ -278,7 +310,7 @@ export default function FriendsPage() {
               My network reputation
             </span>
             <div className="flex items-center gap-space-sm">
-              <Avatar name={profile?.fullName ?? '?'} size={48} imagePath={profile?.profileImagePath ?? null} />
+              <Avatar name={profile?.fullName ?? '?'} size={48} imagePath={avatarUrl} />
               <div className="flex flex-col">
                 <span className="font-headline-sm text-on-surface">{profile?.fullName}</span>
                 <span className={`pill ${myTier.bg} ${myTier.color} self-start`}>

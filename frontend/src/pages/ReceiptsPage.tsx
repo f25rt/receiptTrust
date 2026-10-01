@@ -233,7 +233,7 @@ export default function ReceiptsPage() {
 
       <div className="flex items-center gap-space-xs justify-center text-on-surface-variant">
         <Icon name="lock" className="text-[16px]" />
-        <span className="font-label-sm">Add a receipt image for proof, or track the debt manually</span>
+        <span className="font-label-sm">The image is read to auto-fill items — your debt is backed by the itemized list</span>
       </div>
     </div>
   );

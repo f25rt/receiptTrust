@@ -3,6 +3,7 @@ import type {
   AssignTarget,
   Assignment,
   Dashboard,
+  DebtComment,
   DebtExplanation,
   DebtHistory,
   DebtSummary,
@@ -94,6 +95,10 @@ export const debtApi = {
   get: (id: number) => api.get<DebtSummary>(`/debts/${id}`),
   explanation: (id: number) => api.get<DebtExplanation>(`/debts/${id}/explanation`),
   history: (id: number) => api.get<DebtHistory>(`/debts/${id}/history`),
+  markPaid: (id: number) => api.post<DebtSummary>(`/debts/${id}/mark-paid`),
+  comments: (id: number) => api.get<DebtComment[]>(`/debts/${id}/comments`),
+  addComment: (id: number, body: string) =>
+    api.post<DebtComment>(`/debts/${id}/comments`, { body }),
 };
 
 export const paymentApi = {

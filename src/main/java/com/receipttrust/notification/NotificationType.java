@@ -7,5 +7,7 @@ public enum NotificationType {
     PAYMENT_SUBMITTED,
     PAYMENT_APPROVED,
     PAYMENT_REJECTED,
-    DEBT_SETTLED
+    DEBT_SETTLED,
+    DEBT_MARKED_PAID,
+    DEBT_COMMENT
 }

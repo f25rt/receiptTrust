@@ -31,6 +31,10 @@ public class User extends BaseEntity {
     @Column(name = "profile_image_path")
     private String profileImagePath;
 
+    /** When the current profile image was uploaded (for expiry sweeps). */
+    @Column(name = "profile_image_uploaded_at")
+    private java.time.Instant profileImageUploadedAt;
+
     @Column(name = "trust_score", nullable = false)
     private int trustScore;
 
@@ -111,6 +115,15 @@ public class User extends BaseEntity {
 
     public void setProfileImagePath(String profileImagePath) {
         this.profileImagePath = profileImagePath;
+        this.profileImageUploadedAt = profileImagePath != null ? java.time.Instant.now() : null;
+    }
+
+    public java.time.Instant getProfileImageUploadedAt() {
+        return profileImageUploadedAt;
+    }
+
+    public void setProfileImageUploadedAt(java.time.Instant profileImageUploadedAt) {
+        this.profileImageUploadedAt = profileImageUploadedAt;
     }
 
     public int getTrustScore() {

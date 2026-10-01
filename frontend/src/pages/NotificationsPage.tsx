@@ -12,6 +12,8 @@ const META: Record<NotificationType, { icon: string; color: string }> = {
   PAYMENT_APPROVED: { icon: 'check_circle', color: 'text-tertiary' },
   PAYMENT_REJECTED: { icon: 'cancel', color: 'text-error' },
   DEBT_SETTLED: { icon: 'verified', color: 'text-tertiary' },
+  DEBT_MARKED_PAID: { icon: 'task_alt', color: 'text-tertiary' },
+  DEBT_COMMENT: { icon: 'forum', color: 'text-secondary' },
 };
 
 export default function NotificationsPage() {
