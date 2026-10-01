@@ -54,10 +54,12 @@ receipttrust:
     enabled: ${OCR_ENABLED:true}
     data-path: ${TESSDATA_PATH:./tessdata}
     language: ${OCR_LANGUAGE:eng}
-    # OCR engine: "tesseract" (default, free, local) or "google" (Cloud Vision).
+    # OCR engine: "tesseract" (default, local), "ocrspace" (free cloud), or "google".
     provider: ${OCR_PROVIDER:tesseract}
     # Google Cloud Vision API key (only needed when provider=google).
     vision-api-key: ${GOOGLE_VISION_API_KEY:}
+    # OCR.space API key (only needed when provider=ocrspace).
+    ocrspace-api-key: ${OCRSPACE_API_KEY:}
   social:
     google:
       client-id: ${GOOGLE_CLIENT_ID:}

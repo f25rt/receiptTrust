@@ -20,6 +20,17 @@ public class OcrProperties {
     /** Google Cloud Vision API key (only needed when provider = google). */
     private String visionApiKey = "";
 
+    /** OCR.space API key (only needed when provider = ocrspace). */
+    private String ocrspaceApiKey = "";
+
+    public String getOcrspaceApiKey() {
+        return ocrspaceApiKey;
+    }
+
+    public void setOcrspaceApiKey(String ocrspaceApiKey) {
+        this.ocrspaceApiKey = ocrspaceApiKey;
+    }
+
     public String getProvider() {
         return provider;
     }
