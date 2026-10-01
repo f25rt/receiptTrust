@@ -112,6 +112,35 @@ class ReceiptTextParserTest {
     }
 
     @Test
+    void trustsExplicitQuantityWhenOcrMisreadsLineTotal() {
+        // Exact OCR.space output for the SUNBURST receipt (tab-separated), where the
+        // line total was misread 924.00 -> 724.00. The explicit leading "3" must win
+        // over deriving 724/308 = 2.
+        String rawText = "B\tILL\t\r\nTable 18\t\r\nSep 07, 2026 (Mon)\tBill N: 2158\t\r\n"
+                + "3 Double - Thigh\t308.00\t724.00\t\r\n"
+                + "1 Sotanghon Guisado - Smal\t218.00\t\r\n"
+                + "SUNDOU - 10\t268.00\t\r\n"
+                + "SERVICE WATER -GLA 0.00\t0.00\t\r\n"
+                + "1 Plain Rice - Mould\t48,00\t\r\n"
+                + "SUBTOTAL\t1,458.00\t\r\n"
+                + "SERVICE CHARGE\t52\t65.09\t\r\n"
+                + "TOTAL\t1,523.09\t\r\n"
+                + "7:05 PM\t\r\n"
+                + "SUNBURST\t10 item(%)\t\r\n";
+
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(rawText);
+
+        assertThat(draft.storeName()).isEqualTo("SUNBURST");
+        assertThat(draft.total()).isEqualByComparingTo("1523.09");
+        assertThat(draft.serviceCharge()).isEqualByComparingTo("65.09");
+
+        OcrDtos.ParsedItem thigh = draft.items().get(0);
+        assertThat(thigh.name()).contains("Double");
+        assertThat(thigh.quantity()).isEqualTo(3);          // explicit "3", not derived 2
+        assertThat(thigh.unitPrice()).isEqualByComparingTo("308.00");
+    }
+
+    @Test
     void storeNameEmptyWhenNoConfidentCandidate() {
         // Only item lines and a generic header -> store name should be null, not a
         // leaked item line.

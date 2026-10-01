@@ -148,10 +148,12 @@ public final class ReceiptTextParser {
 
         // Leading quantity column (e.g. "2  Iced Latte" or "2x Latte").
         int quantity = 1;
+        boolean explicitQty = false;
         Matcher qm = QTY_PREFIX.matcher(namePart);
         if (qm.find()) {
             try {
                 quantity = Integer.parseInt(qm.group(1));
+                explicitQty = true;
                 namePart = namePart.substring(qm.end()).strip();
             } catch (NumberFormatException ignored) {
                 quantity = 1;
@@ -174,25 +176,36 @@ public final class ReceiptTextParser {
             return null;
         }
 
-        // Determine unit price and quantity:
-        //  - Two amounts (Price + Amount columns): first = unit price, last = line total.
-        //    Derive quantity from amount/price (more reliable than the OCR'd Qty digit).
-        //  - One amount: it's the line total; divide by the parsed quantity.
+        // Determine unit price and quantity. The first amount is the unit price,
+        // the last (when there are two columns) is the line total.
+        //
+        // When the row has an EXPLICIT leading quantity (e.g. "3 Double - Thigh"),
+        // trust it: OCR frequently misreads the line-total digits (e.g. 924 -> 724),
+        // which would otherwise derive a wrong quantity (724/308 -> 2). The printed
+        // Qty column is the reliable source. Only when there's no leading quantity
+        // do we derive it from amount / price.
         BigDecimal unitPrice;
         if (amounts.size() >= 2) {
+            // Two columns: first = unit price, last = line total.
             unitPrice = amounts.get(0);
             BigDecimal lineTotal = amounts.get(amounts.size() - 1);
-            if (unitPrice.signum() > 0) {
+            if (!explicitQty && unitPrice.signum() > 0) {
+                // No printed quantity: derive it from total / unit price.
                 int derived = lineTotal.divide(unitPrice, 0, RoundingMode.HALF_UP).intValue();
                 if (derived >= 1 && derived <= 999) {
                     quantity = derived;
                 }
             }
+            // With an explicit quantity, trust it (OCR often misreads the line total).
         } else {
-            BigDecimal lineTotal = amounts.get(0);
-            unitPrice = quantity > 1
-                    ? lineTotal.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP)
-                    : lineTotal;
+            // Single amount. With an explicit quantity > 1 it's the line total, so
+            // derive the unit price; otherwise the amount is the unit price (qty 1).
+            BigDecimal amount = amounts.get(0);
+            if (explicitQty && quantity > 1) {
+                unitPrice = amount.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+            } else {
+                unitPrice = amount;
+            }
         }
         return new OcrDtos.ParsedItem(namePart, quantity, unitPrice);
     }
