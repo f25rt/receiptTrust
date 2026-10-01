@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { receiptApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
@@ -12,6 +13,11 @@ interface DraftItem {
   unitPrice: string;
 }
 
+/** Max upload size, kept in sync with the backend multipart limit (MAX_FILE_SIZE). */
+const MAX_UPLOAD_MB = 5;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+
 export default function ReceiptsPage() {
   const navigate = useNavigate();
   const [storeName, setStoreName] = useState('');
@@ -20,19 +26,44 @@ export default function ReceiptsPage() {
   const [image, setImage] = useState<File | null>(null);
   const [items, setItems] = useState<DraftItem[]>([]);
   const [serviceCharge, setServiceCharge] = useState<string | null>(null);
+  const [tax, setTax] = useState<string | null>(null);
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'size' | 'type' | 'ocr' | null>(null);
   const [busy, setBusy] = useState(false);
 
   const onFile = async (file: File | null) => {
-    setImage(file);
     setScanned(false);
     setItems([]);
     setServiceCharge(null);
-    if (!file || !file.type.startsWith('image/')) return;
-    setScanning(true);
+    setTax(null);
     setError(null);
+    setErrorKind(null);
+
+    if (!file) {
+      setImage(null);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setImage(null);
+      setErrorKind('type');
+      setError('That file is not an image. Please upload a JPG or PNG photo of your receipt.');
+      return;
+    }
+    // Reject oversized files before uploading (backend limit is MAX_UPLOAD_MB).
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setImage(null);
+      setErrorKind('size');
+      setError(
+        `That image is ${formatMb(file.size)} MB, over the ${MAX_UPLOAD_MB} MB limit. ` +
+          'Please upload a smaller photo (or lower your camera resolution).'
+      );
+      return;
+    }
+
+    setImage(file);
+    setScanning(true);
     try {
       const { data } = await receiptApi.scan(file);
       if (data.storeName) setStoreName(data.storeName);
@@ -44,10 +75,21 @@ export default function ReceiptsPage() {
         }))
       );
       setServiceCharge(data.serviceCharge);
+      setTax(data.tax);
       setScanned(true);
     } catch (err) {
-      // OCR failing is non-fatal; user can still enter details manually.
-      setError('Could not auto-read the receipt. You can enter details manually.');
+      // Distinguish "file too large" (413) from a generic OCR miss.
+      if (axios.isAxiosError(err) && err.response?.status === 413) {
+        setImage(null);
+        setErrorKind('size');
+        setError(
+          `That image is over the ${MAX_UPLOAD_MB} MB upload limit. Please upload a smaller photo.`
+        );
+      } else {
+        // OCR failing is non-fatal; user can still enter details manually.
+        setErrorKind('ocr');
+        setError('Could not auto-read the receipt. You can enter details manually.');
+      }
     } finally {
       setScanning(false);
     }
@@ -103,15 +145,32 @@ export default function ReceiptsPage() {
       {/* Upload / scan (optional) */}
       <Card className="flex flex-col items-center gap-space-md text-center">
         <label className="w-full flex flex-col items-center gap-space-sm cursor-pointer">
-          <div className="w-20 h-20 rounded-full bg-primary-container/20 flex items-center justify-center text-primary">
-            <Icon name={scanning ? 'sync' : 'photo_camera'} className={`text-[36px] ${scanning ? 'animate-spin' : ''}`} />
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center ${
+              errorKind === 'size' || errorKind === 'type'
+                ? 'bg-error-container/30 text-error'
+                : 'bg-primary-container/20 text-primary'
+            }`}
+          >
+            <Icon
+              name={
+                scanning
+                  ? 'sync'
+                  : errorKind === 'size'
+                  ? 'photo_size_select_large'
+                  : errorKind === 'type'
+                  ? 'hide_image'
+                  : 'photo_camera'
+              }
+              className={`text-[36px] ${scanning ? 'animate-spin' : ''}`}
+            />
           </div>
           <span className="font-headline-sm text-on-surface">
             {scanning ? 'Reading receipt…' : image ? image.name : 'Scan a receipt (optional)'}
           </span>
           <span className="font-body-sm text-on-surface-variant">
-            Upload to auto-read merchant, items &amp; total (JPG or PNG). No image? Just enter
-            details below.
+            Upload to auto-read merchant, items &amp; total (JPG or PNG, max {MAX_UPLOAD_MB} MB).
+            No image? Just enter details below.
           </span>
           <span className="btn-glass mt-space-2xs">
             <Icon name="upload_file" className="text-[18px]" />
@@ -204,12 +263,17 @@ export default function ReceiptsPage() {
                 </button>
               </div>
             ))}
-            {(items.length > 0 || serviceCharge) && (
+            {(items.length > 0 || serviceCharge || tax) && (
               <div className="flex items-center justify-between bg-surface-container-high/60 rounded-lg px-space-md py-space-sm">
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-space-2xs">
                   {serviceCharge && (
                     <span className="font-label-sm text-on-surface-variant">
                       Service charge {money(serviceCharge)}
+                    </span>
+                  )}
+                  {tax && (
+                    <span className="font-label-sm text-on-surface-variant">
+                      Tax / VAT {money(tax)}
                     </span>
                   )}
                   <span className="font-label-md text-on-surface-variant uppercase tracking-wider">Items total</span>

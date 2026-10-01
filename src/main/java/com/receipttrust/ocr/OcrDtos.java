@@ -23,11 +23,12 @@ public final class OcrDtos {
             String storeName,
             List<ParsedItem> items,
             BigDecimal serviceCharge,
+            BigDecimal tax,
             BigDecimal total,
             String rawText
     ) {
         public static ReceiptDraft empty() {
-            return new ReceiptDraft(null, List.of(), null, null, "");
+            return new ReceiptDraft(null, List.of(), null, null, null, "");
         }
     }
 }

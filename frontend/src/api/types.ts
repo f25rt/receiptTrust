@@ -137,6 +137,7 @@ export interface ReceiptDraft {
   storeName: string | null;
   items: ParsedItem[];
   serviceCharge: string | null;
+  tax: string | null;
   total: string | null;
   rawText: string;
 }

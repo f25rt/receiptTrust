@@ -141,6 +141,24 @@ class ReceiptTextParserTest {
     }
 
     @Test
+    void capturesTaxAndServiceChargeSeparately() {
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(String.join("\n",
+                "The Daily Bite",
+                "1 Classic Burger        295.00",
+                "Subtotal                295.00",
+                "Service Charge (10%)     29.50",
+                "VAT (12%)                35.40",
+                "TOTAL                   359.90"));
+
+        assertThat(draft.serviceCharge()).isEqualByComparingTo("29.50");
+        assertThat(draft.tax()).isEqualByComparingTo("35.40");
+        assertThat(draft.total()).isEqualByComparingTo("359.90");
+        // Tax/VAT lines are not treated as items.
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.name().toLowerCase()).contains("vat"));
+    }
+
+    @Test
     void storeNameEmptyWhenNoConfidentCandidate() {
         // Only item lines and a generic header -> store name should be null, not a
         // leaked item line.

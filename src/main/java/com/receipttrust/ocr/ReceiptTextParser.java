@@ -31,6 +31,7 @@ public final class ReceiptTextParser {
 
     private static final List<String> TOTAL_KEYS = List.of("total", "amount due", "balance due", "grand total");
     private static final List<String> SERVICE_KEYS = List.of("service charge", "service", "svc charge", "gratuity", "tip");
+    private static final List<String> TAX_KEYS = List.of("vat", "tax", "gst", "sales tax");
     private static final List<String> SKIP_KEYS = List.of(
             "subtotal", "sub total", "tax", "vat", "change", "cash", "card", "visa",
             "mastercard", "balance", "tender", "amount tendered", "auth", "approval",
@@ -63,6 +64,7 @@ public final class ReceiptTextParser {
 
         String storeName = detectStoreName(lines);
         BigDecimal serviceCharge = null;
+        BigDecimal tax = null;
         BigDecimal total = null;
         List<OcrDtos.ParsedItem> items = new ArrayList<>();
 
@@ -76,6 +78,12 @@ public final class ReceiptTextParser {
 
             if (containsAny(lower, SERVICE_KEYS)) {
                 serviceCharge = last;
+                continue;
+            }
+            // Tax / VAT / GST line. Checked before TOTAL so "total" keyword lines
+            // don't swallow it, and before SKIP so it's captured (not just ignored).
+            if (containsAny(lower, TAX_KEYS)) {
+                tax = last;
                 continue;
             }
             if (containsAny(lower, TOTAL_KEYS)) {
@@ -94,7 +102,7 @@ public final class ReceiptTextParser {
             }
         }
 
-        return new OcrDtos.ReceiptDraft(storeName, items, serviceCharge, total, rawText);
+        return new OcrDtos.ReceiptDraft(storeName, items, serviceCharge, tax, total, rawText);
     }
 
     private static String detectStoreName(List<String> lines) {
