@@ -20,8 +20,12 @@ import java.util.regex.Pattern;
  */
 public final class ReceiptTextParser {
 
-    // One money amount anywhere: 12.00 / 1,234.50 / $6.50 / 1.268,96 not handled (dot-decimal only).
-    private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:,\\d{3})+|\\d+)\\.(\\d{2})");
+    // A money amount with a 2-decimal fraction, supporting BOTH conventions:
+    //   dot-decimal:   308.00  1,234.50  $6.50
+    //   comma-decimal: 308,00  1.234,50  (common from some OCR engines/locales)
+    // Group 1 = the whole numeric token incl. separators; the decimal part is the
+    // last 2 digits after the final separator (resolved in parseMoney()).
+    private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:[.,]\\d{3})*[.,]\\d{2}|\\d+[.,]\\d{2})");
     // Leading quantity column: "2x", "2 x", or just "2 " at the very start.
     private static final Pattern QTY_PREFIX = Pattern.compile("^\\s*(\\d{1,3})\\s*[xX]?\\s+");
 
@@ -94,38 +98,40 @@ public final class ReceiptTextParser {
     }
 
     private static String detectStoreName(List<String> lines) {
-        // First choice: the first "real" text line that isn't a generic header
-        // ("BILL", "RECEIPT", ...), has no amounts, and isn't a known skip line.
-        for (String line : lines) {
-            String lower = line.toLowerCase(Locale.ROOT);
-            long letters = line.chars().filter(Character::isLetter).count();
-            if (letters >= 3
-                    && extractAmounts(line).isEmpty()
-                    && !containsAny(lower, SKIP_KEYS)
-                    && !ITEM_COUNT.matcher(line).find()
-                    && !isGenericHeader(line)
-                    && !lower.matches(".*\\d{3,}.*")) {
-                return line;
-            }
-        }
-        // Fallback: a summary line like "SUNBURST   10 item(s)   7:05 PM" carries
-        // the store name as the leading text before the item count.
+        // Preferred: a summary line like "SUNBURST  10 item(s)  7:05 PM" carries
+        // the store name as the leading text before the item count. This is the
+        // most reliable signal on receipts whose top is a generic "BILL" header.
         for (String line : lines) {
             Matcher m = ITEM_COUNT.matcher(line);
             if (m.find()) {
                 String lead = line.substring(0, m.start()).strip();
-                if (lead.chars().filter(Character::isLetter).count() >= 3 && !isGenericHeader(lead)) {
+                if (isPlausibleStoreName(lead)) {
                     return lead;
                 }
             }
         }
-        // Last resort: the first non-generic line, else the very first line.
+        // Otherwise: a clean header line near the top — real text, no amounts, not
+        // a generic header or a known non-store keyword, and not an item line
+        // (an item line has a trailing amount, which the amount check rejects).
         for (String line : lines) {
-            if (!isGenericHeader(line) && line.chars().filter(Character::isLetter).count() >= 3) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (isPlausibleStoreName(line)
+                    && extractAmounts(line).isEmpty()
+                    && !containsAny(lower, SKIP_KEYS)
+                    && !ITEM_COUNT.matcher(line).find()
+                    && !lower.matches(".*\\d{3,}.*")) {
                 return line;
             }
         }
-        return lines.isEmpty() ? null : lines.get(0);
+        // Not confident -> leave empty for the user to fill in (per product rule).
+        return null;
+    }
+
+    /** A plausible store name: enough letters and not a generic document header. */
+    private static boolean isPlausibleStoreName(String s) {
+        return s != null
+                && s.chars().filter(Character::isLetter).count() >= 3
+                && !isGenericHeader(s);
     }
 
     /** True when the line is just a document header (not a store name). */
@@ -196,14 +202,39 @@ public final class ReceiptTextParser {
         List<BigDecimal> out = new ArrayList<>();
         Matcher m = MONEY.matcher(line);
         while (m.find()) {
-            String whole = m.group(1).replace(",", "");
-            try {
-                out.add(new BigDecimal(whole + "." + m.group(2)));
-            } catch (NumberFormatException ignored) {
-                // skip malformed
+            BigDecimal v = parseMoney(m.group(1));
+            if (v != null) {
+                out.add(v);
             }
         }
         return out;
+    }
+
+    /**
+     * Parses a money token that may use either decimal convention. The final
+     * '.' or ',' is treated as the decimal separator; all earlier separators are
+     * thousands groupings and removed. E.g. "308,00" -> 308.00, "1.234,50" ->
+     * 1234.50, "1,234.50" -> 1234.50.
+     */
+    private static BigDecimal parseMoney(String token) {
+        String t = token.strip().replaceAll("^\\$\\s*", "").replaceAll("\\s+", "");
+        int lastDot = t.lastIndexOf('.');
+        int lastComma = t.lastIndexOf(',');
+        int decimalPos = Math.max(lastDot, lastComma);
+        if (decimalPos < 0) {
+            try {
+                return new BigDecimal(t);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        String intPart = t.substring(0, decimalPos).replaceAll("[.,]", "");
+        String fracPart = t.substring(decimalPos + 1);
+        try {
+            return new BigDecimal(intPart + "." + fracPart);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static boolean containsAny(String haystack, List<String> needles) {

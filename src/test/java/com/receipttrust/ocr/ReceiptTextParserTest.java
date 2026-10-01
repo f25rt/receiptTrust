@@ -67,27 +67,28 @@ class ReceiptTextParserTest {
     }
 
     @Test
-    void parsesBillWithStoreNameAtBottomAndMixedAmountColumns() {
-        // "SUNBURST" style: generic "BILL" header at top, store name on the
-        // "N item(s)" summary line near the bottom, mixed 1- and 2-amount rows.
+    void parsesBillWithStoreNameAtBottomAndCommaDecimals() {
+        // Real OCR.space output for the "SUNBURST" receipt: generic "BILL" header,
+        // store name on the "N item(s)" summary line, and COMMA decimals (308,00).
         String text = String.join("\n",
                 "B I L L",
                 "Table 18",
                 "Sep 07, 2026 (Mon)        Bill #: 2158",
-                "3  Double - Thigh    308.00    924.00",
-                "1  Sotanghon Guisado - Smal   218.00",
-                "1  SUNDOU - TD              268.00",
-                "4  SERVICE WATER -GLA 0.00    0.00",
-                "1  Plain Rice - Mould         48.00",
-                "SUBTOTAL                    1,458.00",
-                "SERVICE CHARGE    5%           65.09",
-                "TOTAL                       1,523.09",
+                "3  Double - Thigh    308,00    924,00",
+                "1  Sotanghon Guisado - Smal   218,00",
+                "1  SUNDOU - TD              268,00",
+                "4  SERVICE WATER -GLA 0,00    0,00",
+                "1  Plain Rice - Mould         48,00",
+                "SUBTOTAL                    1.458,00",
+                "SERVICE CHARGE    5%           65,09",
+                "TOTAL                       1.523,09",
                 "SUNBURST     10 item(s)     7:05 PM");
 
         OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(text);
 
-        // Store name comes from the bottom summary line, not "BILL".
+        // Store name comes from the bottom summary line, NOT a leaked item line.
         assertThat(draft.storeName()).isEqualTo("SUNBURST");
+        // Comma-decimals parse correctly.
         assertThat(draft.serviceCharge()).isEqualByComparingTo("65.09");
         assertThat(draft.total()).isEqualByComparingTo("1523.09");
 
@@ -103,6 +104,23 @@ class ReceiptTextParserTest {
             assertThat(it.quantity()).isEqualTo(1);
             assertThat(it.unitPrice()).isEqualByComparingTo("218.00");
         });
+        // The "Plain Rice" line must be an item, not leaked into the store name.
+        assertThat(draft.items()).anySatisfy(it -> {
+            assertThat(it.name()).contains("Plain Rice");
+            assertThat(it.unitPrice()).isEqualByComparingTo("48.00");
+        });
+    }
+
+    @Test
+    void storeNameEmptyWhenNoConfidentCandidate() {
+        // Only item lines and a generic header -> store name should be null, not a
+        // leaked item line.
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(String.join("\n",
+                "BILL",
+                "1  Plain Rice - Mould   48,00",
+                "TOTAL   48,00"));
+        assertThat(draft.storeName()).isNull();
+        assertThat(draft.items()).anySatisfy(it -> assertThat(it.name()).contains("Plain Rice"));
     }
 
     @Test
