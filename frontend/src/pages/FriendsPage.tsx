@@ -9,6 +9,7 @@ import { Avatar, Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { trustTier, signedMoney } from '../lib/format';
 import { useDebounce } from '../lib/useDebounce';
 import { usePolling } from '../lib/usePolling';
+import { useRealtimeEvent } from '../lib/useRealtime';
 
 const TIERS = [
   { min: '300+', label: 'Starter', dot: 'bg-outline' },
@@ -75,8 +76,9 @@ export default function FriendsPage() {
     load();
   }, []);
 
-  // Auto-refresh friend list, incoming requests, and balances.
-  usePolling(load, 10000);
+  // Live refresh on server push (friend requests/accepts), slow poll fallback.
+  useRealtimeEvent(['notification', 'assignment'], load);
+  usePolling(load, 30000);
 
   // Live search as the user types (debounced).
   const debouncedQuery = useDebounce(query, 300);

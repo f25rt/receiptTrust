@@ -3,6 +3,8 @@ import { useAuth } from '../auth/AuthContext';
 import { useAvatarUrl } from '../auth/useAvatarUrl';
 import { Avatar, Icon } from './ui';
 import { trustTier } from '../lib/format';
+import { useRealtime } from '../lib/useRealtime';
+import { useIdleLogout } from '../lib/useIdleLogout';
 
 const NAV = [
   { to: '/', icon: 'dashboard', label: 'Dashboard', end: true },
@@ -22,6 +24,16 @@ export default function Layout() {
     await logout();
     navigate('/login');
   };
+
+  // Open the realtime (SSE) connection while logged in so UI areas get live
+  // pushes instead of relying only on polling.
+  useRealtime(!!profile);
+
+  // Log out automatically after 5 minutes of inactivity to trim idle sessions
+  // and close the open SSE connection.
+  useIdleLogout(() => {
+    void handleLogout();
+  }, 5 * 60 * 1000, !!profile);
 
   const trustPill = (
     <button

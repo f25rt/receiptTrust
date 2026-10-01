@@ -14,6 +14,7 @@ import type {
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { money } from '../lib/format';
 import { usePolling } from '../lib/usePolling';
+import { useRealtimeEvent } from '../lib/useRealtime';
 
 const METHODS: PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER'];
 
@@ -85,8 +86,9 @@ export default function DebtDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debtId]);
 
-  // Auto-refresh comments, payments, and status without a full page reload.
-  usePolling(refreshDynamic, 8000);
+  // Live refresh of comments/payments/status on server push, slow poll fallback.
+  useRealtimeEvent('notification', refreshDynamic);
+  usePolling(refreshDynamic, 30000);
 
   const iAmCreditor = explanation?.paidByUsername === profile?.username;
 

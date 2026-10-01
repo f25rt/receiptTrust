@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../api/client';
 import type { DirectMessage } from '../api/types';
 import { Avatar, Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { usePolling } from '../lib/usePolling';
+import { useRealtimeEvent } from '../lib/useRealtime';
 
 export default function ChatPage() {
   const { username = '' } = useParams();
@@ -29,8 +30,9 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
-  // Light polling so a reply shows up without a manual refresh.
-  usePolling(load, 5000);
+  // Live refresh when a message arrives, with a slow poll fallback.
+  useRealtimeEvent('message', load);
+  usePolling(load, 30000);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });

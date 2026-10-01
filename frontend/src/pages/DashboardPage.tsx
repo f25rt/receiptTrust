@@ -7,6 +7,7 @@ import type { Dashboard, DebtSummary, PendingAssignment } from '../api/types';
 import { Avatar, Card, ErrorBanner, Empty, Icon } from '../components/ui';
 import { money, signedMoney, trustTier, MAX_TRUST_SCORE } from '../lib/format';
 import { usePolling } from '../lib/usePolling';
+import { useRealtimeEvent } from '../lib/useRealtime';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -31,8 +32,9 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  // Keep balances and pending approvals fresh without a manual refresh.
-  usePolling(load, 10000);
+  // Refresh instantly on a server push, with a slow poll as a fallback.
+  useRealtimeEvent(['notification', 'assignment'], load);
+  usePolling(load, 30000);
 
   const act = async (fn: () => Promise<unknown>) => {
     setError(null);

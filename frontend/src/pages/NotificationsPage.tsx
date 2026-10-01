@@ -4,6 +4,7 @@ import { apiErrorMessage } from '../api/client';
 import type { Notification, NotificationType } from '../api/types';
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { usePolling } from '../lib/usePolling';
+import { useRealtimeEvent } from '../lib/useRealtime';
 
 const META: Record<NotificationType, { icon: string; color: string }> = {
   FRIEND_REQUEST_RECEIVED: { icon: 'person_add', color: 'text-secondary' },
@@ -38,8 +39,9 @@ export default function NotificationsPage() {
     load();
   }, []);
 
-  // Auto-refresh notifications so new activity appears without a manual refresh.
-  usePolling(load, 10000);
+  // Live refresh on any server push, with a slow poll fallback.
+  useRealtimeEvent(['notification', 'message', 'assignment'], load);
+  usePolling(load, 30000);
 
   const markRead = async (id: number) => {
     try {

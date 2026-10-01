@@ -83,6 +83,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
                                 "/api/auth/google", "/api/auth/facebook")
                         .permitAll()
+                        // SSE stream authenticates via a token query param (EventSource
+                        // can't send an Authorization header), so it's permitted here
+                        // and validated inside the controller.
+                        .requestMatchers("/api/stream")
+                        .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .anyRequest().authenticated())
