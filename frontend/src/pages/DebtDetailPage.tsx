@@ -92,9 +92,16 @@ export default function DebtDetailPage() {
 
   const iAmCreditor = explanation?.paidByUsername === profile?.username;
 
+  // Guards so pay actions can't be double-submitted and the full/partial paths
+  // are mutually exclusive.
+  const [submitting, setSubmitting] = useState(false);
+  const hasPartialAmount = amount.trim().length > 0;
+
   const submitPayment = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       await paymentApi.submit(debtId, amount, method, notes);
       setAmount('');
@@ -102,6 +109,8 @@ export default function DebtDetailPage() {
       await load();
     } catch (err) {
       setError(apiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -118,24 +127,31 @@ export default function DebtDetailPage() {
 
   // Creditor marks the debt fully paid -> settles immediately.
   const markPaid = async () => {
+    if (submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       await debtApi.markPaid(debtId);
       await Promise.all([load(), refreshProfile()]);
     } catch (err) {
       setError(apiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   // Debtor one-tap: submit the full outstanding amount for the lender to approve.
   const markFullyPaid = async () => {
-    if (!debt) return;
+    if (!debt || submitting || hasPartialAmount) return;
     setError(null);
+    setSubmitting(true);
     try {
       await paymentApi.submit(debtId, debt.outstandingAmount, method, 'Marked as fully paid');
       await load();
     } catch (err) {
       setError(apiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -266,7 +282,7 @@ export default function DebtDetailPage() {
           <p className="font-body-sm text-on-surface-variant">
             As the lender, mark this debt as fully paid. It settles immediately — no approval needed.
           </p>
-          <button className="btn-primary w-full py-3" onClick={markPaid}>
+          <button className="btn-primary w-full py-3" onClick={markPaid} disabled={submitting}>
             <Icon name="task_alt" className="text-[18px]" /> Mark as paid
           </button>
         </Card>
@@ -276,9 +292,19 @@ export default function DebtDetailPage() {
       {!iAmCreditor && !settled && (
         <Card className="flex flex-col gap-space-md">
           <span className="font-headline-sm text-on-surface">Submit a payment</span>
-          <button type="button" className="btn-glass w-full py-3" onClick={markFullyPaid}>
+          <button
+            type="button"
+            className="btn-glass w-full py-3"
+            onClick={markFullyPaid}
+            disabled={submitting || hasPartialAmount}
+          >
             <Icon name="task_alt" className="text-[18px]" /> Mark as fully paid ({money(debt.outstandingAmount)})
           </button>
+          {hasPartialAmount && (
+            <span className="font-label-sm text-on-surface-variant">
+              Clear the amount below to mark the full balance as paid.
+            </span>
+          )}
           <div className="flex items-center gap-space-sm">
             <span className="h-px flex-1 bg-white/[0.08]" />
             <span className="font-label-sm text-on-surface-variant">or pay partially</span>
@@ -287,7 +313,14 @@ export default function DebtDetailPage() {
           <form className="flex flex-col gap-space-md" onSubmit={submitPayment}>
             <div>
               <label className="field-label">Amount</label>
-              <input className="field-input" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={money(debt.outstandingAmount)} required />
+              <input
+                className="field-input"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={money(debt.outstandingAmount)}
+                disabled={submitting}
+                required
+              />
             </div>
             <div>
               <label className="field-label">Method</label>
@@ -312,7 +345,7 @@ export default function DebtDetailPage() {
               <label className="field-label">Notes (optional)</label>
               <input className="field-input" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
-            <button className="btn-primary w-full py-3">
+            <button className="btn-primary w-full py-3" disabled={submitting || !hasPartialAmount}>
               <Icon name="payments" className="text-[18px]" /> Submit payment
             </button>
           </form>
