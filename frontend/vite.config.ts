@@ -38,9 +38,11 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        // Enable the manifest + service worker in `npm run dev` so the app is
-        // installable from the local dev URL (localhost is a secure context).
-        enabled: true,
+        // Keep the service worker OFF in `npm run dev`. In development it only
+        // gets in the way: it intercepts requests (API 401s show up as "from
+        // service worker") and serves stale cached JS. The SW is still built and
+        // active in the production build, where it belongs.
+        enabled: false,
         type: 'module',
       },
     }),
