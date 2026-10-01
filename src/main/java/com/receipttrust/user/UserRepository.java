@@ -15,8 +15,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    List<User> findTop20ByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
-            String usernamePart, String emailPart);
+    /** Case-insensitive search across full name, username, and email. */
+    @org.springframework.data.jpa.repository.Query("""
+            select u from User u
+            where lower(u.fullName) like lower(concat('%', :q, '%'))
+               or lower(u.username) like lower(concat('%', :q, '%'))
+               or lower(u.email)    like lower(concat('%', :q, '%'))
+            order by u.fullName asc
+            """)
+    List<User> searchByNameOrUsernameOrEmail(
+            @org.springframework.data.repository.query.Param("q") String q,
+            org.springframework.data.domain.Pageable pageable);
 
     /** Users whose profile image was uploaded before the cutoff. */
     @org.springframework.data.jpa.repository.Query("""

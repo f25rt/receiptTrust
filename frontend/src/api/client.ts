@@ -53,6 +53,15 @@ async function tryRefresh(): Promise<string | null> {
   }
 }
 
+/** Event fired when the session can no longer be refreshed and the user must be logged out. */
+export const AUTH_LOGOUT_EVENT = 'rt:auth-logout';
+
+/** Clear tokens and notify the app (AuthProvider) to reset state and route to login. */
+export function forceLogout() {
+  tokenStore.clear();
+  window.dispatchEvent(new CustomEvent(AUTH_LOGOUT_EVENT));
+}
+
 api.interceptors.response.use(
   (r) => r,
   async (error: AxiosError) => {
@@ -69,10 +78,8 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       }
-      // Refresh failed: bounce to login.
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      // Refresh failed / token expired: log the user out cleanly.
+      forceLogout();
     }
     return Promise.reject(error);
   }

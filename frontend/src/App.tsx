@@ -10,6 +10,7 @@ import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import DebtDetailPage from './pages/DebtDetailPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
+import ChatPage from './pages/ChatPage';
 import { ReactNode } from 'react';
 
 function Protected({ children }: { children: ReactNode }) {
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/receipts" element={<ReceiptsPage />} />
         <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
         <Route path="/debts/:id" element={<DebtDetailPage />} />
+        <Route path="/messages/:username" element={<ChatPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>

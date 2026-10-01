@@ -17,4 +17,22 @@ public interface ItemAssignmentRepository extends JpaRepository<ItemAssignment, 
             where a.receiptItem.receipt = :receipt
             """)
     List<ItemAssignment> findByReceipt(@Param("receipt") Receipt receipt);
+
+    /** Unconfirmed assignments on a receipt (block finalize while any remain). */
+    @Query("""
+            select a from ItemAssignment a
+            where a.receiptItem.receipt = :receipt
+              and a.confirmed = false
+            """)
+    List<ItemAssignment> findUnconfirmedByReceipt(@Param("receipt") Receipt receipt);
+
+    /** Assignments awaiting the given user's confirmation, on non-finalized receipts. */
+    @Query("""
+            select a from ItemAssignment a
+            where a.assignee.id = :userId
+              and a.confirmed = false
+              and a.receiptItem.receipt.finalized = false
+            order by a.createdAt desc
+            """)
+    List<ItemAssignment> findPendingForAssignee(@Param("userId") Long userId);
 }

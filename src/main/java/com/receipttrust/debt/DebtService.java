@@ -64,6 +64,20 @@ public class DebtService {
             throw new ApiExceptions.ConflictException("Receipt already finalized");
         }
 
+        // Block finalize while any assignment is still awaiting the assignee's
+        // confirmation (a non-friend registered user who hasn't agreed yet).
+        List<ItemAssignment> unconfirmed = assignmentRepository.findUnconfirmedByReceipt(receipt);
+        if (!unconfirmed.isEmpty()) {
+            String names = unconfirmed.stream()
+                    .map(ItemAssignment::displayName)
+                    .distinct()
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("");
+            throw new ApiExceptions.ConflictException(
+                    "Waiting for confirmation from: " + names
+                            + ". They must confirm their items before you can finalize.");
+        }
+
         List<ItemAssignment> assignments = assignmentRepository.findByReceipt(receipt);
 
         // Aggregate by debtor key (registered user or label), excluding the owner's

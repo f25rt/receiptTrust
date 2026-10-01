@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import { tokenStore } from '../api/client';
+import { AUTH_LOGOUT_EVENT, tokenStore } from '../api/client';
 import { authApi, profileApi } from '../api/services';
 import type { MyProfile } from '../api/types';
 
@@ -34,6 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadProfile().finally(() => setLoading(false));
+  }, []);
+
+  // When the API client can't refresh an expired token, it clears tokens and
+  // fires this event. Reset auth state and send the user to the login screen.
+  useEffect(() => {
+    const onForcedLogout = () => {
+      setProfile(null);
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    };
+    window.addEventListener(AUTH_LOGOUT_EVENT, onForcedLogout);
+    return () => window.removeEventListener(AUTH_LOGOUT_EVENT, onForcedLogout);
   }, []);
 
   const login = async (username: string, password: string) => {

@@ -2,6 +2,8 @@ package com.receipttrust.assignment;
 
 import com.receipttrust.common.exception.ApiExceptions;
 import com.receipttrust.friend.FriendService;
+import com.receipttrust.notification.NotificationService;
+import com.receipttrust.notification.NotificationType;
 import com.receipttrust.receipt.Receipt;
 import com.receipttrust.receipt.ReceiptItem;
 import com.receipttrust.receipt.ReceiptItemRepository;
@@ -23,17 +25,20 @@ public class AssignmentService {
     private final ReceiptService receiptService;
     private final FriendService friendService;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public AssignmentService(ItemAssignmentRepository assignmentRepository,
                              ReceiptItemRepository itemRepository,
                              ReceiptService receiptService,
                              FriendService friendService,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             NotificationService notificationService) {
         this.assignmentRepository = assignmentRepository;
         this.itemRepository = itemRepository;
         this.receiptService = receiptService;
         this.friendService = friendService;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -86,9 +91,68 @@ public class AssignmentService {
             ItemAssignment assignment = t.user != null
                     ? new ItemAssignment(item, t.user, splitType, shares.get(i))
                     : new ItemAssignment(item, t.label, splitType, shares.get(i));
-            created.add(assignmentRepository.save(assignment));
+            // A registered user who is not yet a friend must confirm the assignment
+            // before the receipt can be finalized.
+            assignment.setConfirmed(!t.needsConfirmation);
+            ItemAssignment saved = assignmentRepository.save(assignment);
+            created.add(saved);
+
+            if (t.needsConfirmation) {
+                notificationService.notify(t.user, NotificationType.ASSIGNMENT_CONFIRM_REQUEST,
+                        owner.getUsername() + " assigned you \"" + item.getName() + "\" ("
+                                + shares.get(i) + "). Confirm it's yours so they can finalize the split.");
+            }
         }
         return created;
+    }
+
+    /**
+     * The assignee confirms a pending assignment is theirs. Only the assignee may
+     * confirm. Notifies the receipt owner.
+     */
+    @Transactional
+    public void confirmAssignment(User assignee, Long assignmentId) {
+        ItemAssignment assignment = requirePendingForAssignee(assignee, assignmentId);
+        assignment.setConfirmed(true);
+        assignmentRepository.save(assignment);
+        User owner = assignment.getReceiptItem().getReceipt().getOwner();
+        notificationService.notify(owner, NotificationType.ASSIGNMENT_CONFIRMED,
+                assignee.getUsername() + " confirmed \"" + assignment.getReceiptItem().getName() + "\" is theirs.");
+    }
+
+    /**
+     * The assignee declines a pending assignment: it is removed from the receipt.
+     * Notifies the receipt owner.
+     */
+    @Transactional
+    public void declineAssignment(User assignee, Long assignmentId) {
+        ItemAssignment assignment = requirePendingForAssignee(assignee, assignmentId);
+        String itemName = assignment.getReceiptItem().getName();
+        User owner = assignment.getReceiptItem().getReceipt().getOwner();
+        assignmentRepository.delete(assignment);
+        notificationService.notify(owner, NotificationType.ASSIGNMENT_DECLINED,
+                assignee.getUsername() + " declined \"" + itemName + "\". It was removed from the split.");
+    }
+
+    /** Assignments awaiting the given user's confirmation. */
+    @Transactional(readOnly = true)
+    public List<AssignmentDtos.PendingAssignment> pendingForAssignee(User assignee) {
+        return assignmentRepository.findPendingForAssignee(assignee.getId()).stream()
+                .map(AssignmentDtos.PendingAssignment::from)
+                .toList();
+    }
+
+    private ItemAssignment requirePendingForAssignee(User assignee, Long assignmentId) {
+        ItemAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ApiExceptions.ResourceNotFoundException("Assignment not found"));
+        if (assignment.getAssignee() == null
+                || !assignment.getAssignee().getId().equals(assignee.getId())) {
+            throw new ApiExceptions.ForbiddenException("Not your assignment to confirm");
+        }
+        if (assignment.getReceiptItem().getReceipt().isFinalized()) {
+            throw new ApiExceptions.ConflictException("Receipt is already finalized");
+        }
+        return assignment;
     }
 
     @Transactional
@@ -113,8 +177,12 @@ public class AssignmentService {
         return assignmentRepository.findByReceiptItem(item);
     }
 
-    /** A resolved assignment target: either a registered user or a label string. */
-    private record ResolvedTarget(User user, String label) {
+    /**
+     * A resolved assignment target: either a registered user or a label string.
+     * {@code needsConfirmation} is true for a registered user who is not yet an
+     * accepted friend of the owner (and is not the owner).
+     */
+    private record ResolvedTarget(User user, String label, boolean needsConfirmation) {
     }
 
     private List<ResolvedTarget> resolveTargets(User owner, List<AssignmentDtos.AssignTarget> targets) {
@@ -125,21 +193,21 @@ public class AssignmentService {
                 if (label.isEmpty()) {
                     throw new ApiExceptions.ValidationException("Label name is required");
                 }
-                resolved.add(new ResolvedTarget(null, label));
+                resolved.add(new ResolvedTarget(null, label, false));
             } else {
                 User assignee = userRepository.findByUsername(target.username())
                         .orElseThrow(() -> new ApiExceptions.ValidationException(
                                 "User not found: " + target.username()));
                 boolean isOwner = assignee.getId().equals(owner.getId());
-                if (!isOwner && !friendService.areFriends(owner, assignee)) {
-                    throw new ApiExceptions.ValidationException(
-                            "Can only assign items to accepted friends: " + target.username());
-                }
-                resolved.add(new ResolvedTarget(assignee, null));
+                // Friends (and the owner) are auto-confirmed; anyone else must confirm.
+                boolean needsConfirmation = !isOwner && !friendService.areFriends(owner, assignee);
+                resolved.add(new ResolvedTarget(assignee, null, needsConfirmation));
             }
         }
         return resolved;
     }
+
+
 
     private List<BigDecimal> computeShares(BigDecimal lineTotal, SplitType splitType, int count) {
         if (splitType == SplitType.INDIVIDUAL) {

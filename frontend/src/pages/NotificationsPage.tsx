@@ -14,6 +14,10 @@ const META: Record<NotificationType, { icon: string; color: string }> = {
   DEBT_SETTLED: { icon: 'verified', color: 'text-tertiary' },
   DEBT_MARKED_PAID: { icon: 'task_alt', color: 'text-tertiary' },
   DEBT_COMMENT: { icon: 'forum', color: 'text-secondary' },
+  ASSIGNMENT_CONFIRM_REQUEST: { icon: 'assignment_ind', color: 'text-secondary' },
+  ASSIGNMENT_CONFIRMED: { icon: 'how_to_reg', color: 'text-tertiary' },
+  ASSIGNMENT_DECLINED: { icon: 'person_off', color: 'text-error' },
+  DIRECT_MESSAGE: { icon: 'chat', color: 'text-secondary' },
 };
 
 export default function NotificationsPage() {

@@ -43,6 +43,15 @@ public class ItemAssignment extends BaseEntity {
     @Column(name = "share_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal shareAmount;
 
+    /**
+     * Whether the assignee has agreed this item is theirs. Friends (and the owner)
+     * are auto-confirmed; a registered user who is not yet a friend starts
+     * unconfirmed and must confirm before the receipt can be finalized. Labels
+     * (non-registered) are always confirmed since they have no account to ask.
+     */
+    @Column(name = "confirmed", nullable = false)
+    private boolean confirmed = true;
+
     protected ItemAssignment() {
     }
 
@@ -93,5 +102,13 @@ public class ItemAssignment extends BaseEntity {
 
     public BigDecimal getShareAmount() {
         return shareAmount;
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public void setConfirmed(boolean confirmed) {
+        this.confirmed = confirmed;
     }
 }

@@ -7,10 +7,12 @@ import type {
   DebtExplanation,
   DebtHistory,
   DebtSummary,
+  DirectMessage,
   MyProfile,
   Notification,
   Payment,
   PaymentMethod,
+  PendingAssignment,
   PublicProfile,
   Receipt,
   ReceiptDraft,
@@ -107,6 +109,19 @@ export const paymentApi = {
   list: (debtId: number) => api.get<Payment[]>(`/debts/${debtId}/payments`),
   approve: (paymentId: number) => api.post<Payment>(`/payments/${paymentId}/approve`),
   reject: (paymentId: number) => api.post<Payment>(`/payments/${paymentId}/reject`),
+};
+
+export const assignmentApi = {
+  pending: () => api.get<PendingAssignment[]>('/assignments/pending'),
+  confirm: (assignmentId: number) => api.post(`/assignments/${assignmentId}/confirm`),
+  decline: (assignmentId: number) => api.post(`/assignments/${assignmentId}/decline`),
+};
+
+export const messageApi = {
+  conversation: (username: string) => api.get<DirectMessage[]>(`/messages/${username}`),
+  send: (username: string, body: string) =>
+    api.post<DirectMessage>(`/messages/${username}`, { body }),
+  unreadCount: () => api.get<{ count: number }>('/messages/unread-count'),
 };
 
 export const notificationApi = {

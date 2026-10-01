@@ -92,6 +92,26 @@ export interface Assignment {
   label: boolean;
   splitType: SplitType;
   shareAmount: string;
+  confirmed: boolean;
+}
+
+/** An assignment awaiting the current user's confirmation. */
+export interface PendingAssignment {
+  assignmentId: number;
+  receiptId: number;
+  storeName: string;
+  ownerUsername: string;
+  itemName: string;
+  shareAmount: string;
+}
+
+export interface DirectMessage {
+  id: number;
+  senderUsername: string;
+  mine: boolean;
+  body: string;
+  read: boolean;
+  createdAt: string;
 }
 
 export type DebtStatus = 'ACTIVE' | 'SETTLED';
@@ -192,7 +212,11 @@ export type NotificationType =
   | 'PAYMENT_REJECTED'
   | 'DEBT_SETTLED'
   | 'DEBT_MARKED_PAID'
-  | 'DEBT_COMMENT';
+  | 'DEBT_COMMENT'
+  | 'ASSIGNMENT_CONFIRM_REQUEST'
+  | 'ASSIGNMENT_CONFIRMED'
+  | 'ASSIGNMENT_DECLINED'
+  | 'DIRECT_MESSAGE';
 
 export interface Notification {
   id: number;

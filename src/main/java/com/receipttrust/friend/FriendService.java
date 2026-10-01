@@ -28,8 +28,12 @@ public class FriendService {
 
     @Transactional(readOnly = true)
     public List<User> search(User requester, String query) {
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) {
+            return List.of();
+        }
         return userRepository
-                .findTop20ByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query)
+                .searchByNameOrUsernameOrEmail(q, org.springframework.data.domain.PageRequest.of(0, 20))
                 .stream()
                 .filter(u -> !u.getId().equals(requester.getId()))
                 .toList();

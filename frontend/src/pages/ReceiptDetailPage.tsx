@@ -390,10 +390,21 @@ function ItemCard({
           {assignments.map((a) => (
             <span
               key={a.id}
-              className={`pill ${a.label ? 'bg-secondary/15 text-secondary' : 'bg-surface-container-high text-on-surface-variant'}`}
+              className={`pill ${
+                !a.confirmed
+                  ? 'bg-tertiary/15 text-tertiary'
+                  : a.label
+                  ? 'bg-secondary/15 text-secondary'
+                  : 'bg-surface-container-high text-on-surface-variant'
+              }`}
+              title={!a.confirmed ? 'Waiting for this person to confirm' : undefined}
             >
-              <Icon name={a.label ? 'label' : 'person'} className="text-[12px]" />
+              <Icon
+                name={!a.confirmed ? 'hourglass_empty' : a.label ? 'label' : 'person'}
+                className="text-[12px]"
+              />
               {a.assigneeName}: {money(a.shareAmount)}
+              {!a.confirmed && ' · pending'}
             </span>
           ))}
         </div>

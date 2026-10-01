@@ -36,11 +36,33 @@ public final class AssignmentDtos {
             String assigneeName,
             boolean label,
             SplitType splitType,
-            BigDecimal shareAmount
+            BigDecimal shareAmount,
+            boolean confirmed
     ) {
         public static AssignmentResponse from(ItemAssignment a) {
             return new AssignmentResponse(a.getId(), a.getReceiptItem().getId(),
-                    a.displayName(), a.isLabel(), a.getSplitType(), a.getShareAmount());
+                    a.displayName(), a.isLabel(), a.getSplitType(), a.getShareAmount(), a.isConfirmed());
+        }
+    }
+
+    /** An assignment awaiting the current user's confirmation. */
+    public record PendingAssignment(
+            Long assignmentId,
+            Long receiptId,
+            String storeName,
+            String ownerUsername,
+            String itemName,
+            BigDecimal shareAmount
+    ) {
+        public static PendingAssignment from(ItemAssignment a) {
+            var receipt = a.getReceiptItem().getReceipt();
+            return new PendingAssignment(
+                    a.getId(),
+                    receipt.getId(),
+                    receipt.getStoreName(),
+                    receipt.getOwner().getUsername(),
+                    a.getReceiptItem().getName(),
+                    a.getShareAmount());
         }
     }
 }
