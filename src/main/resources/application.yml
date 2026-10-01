@@ -80,3 +80,4 @@ management:
 logging:
   level:
     org.springframework.security: INFO
+    com.receipttrust.security: ${AUTH_LOG_LEVEL:INFO}

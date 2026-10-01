@@ -55,6 +55,9 @@ public class SecurityConfig {
                 .map(o -> o.strip().replaceAll("/+$", ""))
                 .toList();
 
+        org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+                .info("CORS allowed origin patterns: {}", origins);
+
         CorsConfiguration config = new CorsConfiguration();
         // allowedOriginPatterns works with allowCredentials(true) and tolerates
         // exact origins as well as patterns.

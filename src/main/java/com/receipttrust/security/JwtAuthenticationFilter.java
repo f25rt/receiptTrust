@@ -20,6 +20,8 @@ import java.util.Optional;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
@@ -50,9 +52,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     authentication.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    // Token is valid but names a user id that no longer exists (e.g. the
+                    // database was switched/reset). This is a common cause of "401 right
+                    // after login" when tokens outlive their backing data.
+                    log.warn("JWT valid but user id {} not found (stale token / DB change?)", userId);
                 }
             } catch (Exception ex) {
-                // Invalid/expired token: leave context unauthenticated -> 401 downstream.
+                // Invalid/expired/mis-signed token: leave context unauthenticated -> 401.
+                log.warn("JWT rejected on {} {}: {}", request.getMethod(), request.getRequestURI(),
+                        ex.getClass().getSimpleName() + ": " + ex.getMessage());
                 SecurityContextHolder.clearContext();
             }
         }
