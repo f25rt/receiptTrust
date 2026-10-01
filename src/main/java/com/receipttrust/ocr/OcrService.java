@@ -73,10 +73,21 @@ public class OcrService {
             Tesseract tesseract = new Tesseract();
             tesseract.setDatapath(dataDir.getAbsolutePath());
             tesseract.setLanguage(properties.getLanguage());
-            tesseract.setPageSegMode(6); // assume a uniform block of text
+            tesseract.setPageSegMode(4); // a single column of text of variable sizes (receipts)
+            tesseract.setVariable("preserve_interword_spaces", "1");
             String text = tesseract.doOCR(image);
             log.info("OCR read {} chars using tessdata at {}",
                     text == null ? 0 : text.length(), dataDir.getAbsolutePath());
+            // Log a snippet of the raw text so OCR quality is visible in server logs.
+            if (log.isInfoEnabled() && text != null) {
+                String snippet = text.replaceAll("\\s+", " ").strip();
+                log.info("OCR raw text (first 300 chars): {}",
+                        snippet.length() > 300 ? snippet.substring(0, 300) : snippet);
+            }
+            if (looksLikeGibberish(text)) {
+                log.info("OCR output looks unreliable; returning empty draft for manual entry");
+                return OcrDtos.ReceiptDraft.empty();
+            }
             return applyVocabulary(ReceiptTextParser.parse(text));
         } catch (IOException e) {
             log.warn("Failed to read image for OCR: {}", e.getMessage());
@@ -158,6 +169,64 @@ public class OcrService {
                 RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.drawImage(src.getScaledInstance(nw, nh, Image.SCALE_SMOOTH), 0, 0, null);
         g.dispose();
-        return gray;
+
+        return binarize(gray);
+    }
+
+    /**
+     * Converts a grayscale image to black & white using a global threshold at the
+     * mean luminance. Dot-matrix / thermal receipts OCR far better as crisp B&W
+     * than as a noisy grayscale photo.
+     */
+    private BufferedImage binarize(BufferedImage gray) {
+        int w = gray.getWidth();
+        int h = gray.getHeight();
+
+        // Compute mean luminance as the threshold.
+        long sum = 0;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                sum += gray.getRaster().getSample(x, y, 0);
+            }
+        }
+        int threshold = (int) (sum / ((long) w * h));
+
+        BufferedImage bw = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int v = gray.getRaster().getSample(x, y, 0);
+                bw.getRaster().setSample(x, y, 0, v < threshold ? 0 : 255);
+            }
+        }
+        return bw;
+    }
+
+    /**
+     * Heuristic to detect unusable OCR output (random letters/noise) so we can
+     * fall back to clean manual entry instead of showing the user gibberish.
+     * Flags text with very few real words (letter-runs of length >= 3).
+     */
+    private boolean looksLikeGibberish(String text) {
+        if (text == null || text.isBlank()) {
+            return true;
+        }
+        String[] tokens = text.split("\\s+");
+        int realWords = 0;
+        int alphaTokens = 0;
+        for (String t : tokens) {
+            String letters = t.replaceAll("[^A-Za-z]", "");
+            if (letters.length() >= 2) {
+                alphaTokens++;
+            }
+            if (letters.length() >= 3) {
+                realWords++;
+            }
+        }
+        // If there's barely any multi-letter content, or almost no 3+ letter words
+        // among the alphabetic tokens, treat it as unreliable.
+        if (realWords < 2) {
+            return true;
+        }
+        return alphaTokens > 0 && ((double) realWords / alphaTokens) < 0.25;
     }
 }
