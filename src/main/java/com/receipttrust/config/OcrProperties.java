@@ -14,6 +14,28 @@ public class OcrProperties {
     /** Tesseract language(s), e.g. "eng". */
     private String language = "eng";
 
+    /** OCR engine to use: "tesseract" (default, free, local) or "google" (Cloud Vision). */
+    private String provider = "tesseract";
+
+    /** Google Cloud Vision API key (only needed when provider = google). */
+    private String visionApiKey = "";
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public String getVisionApiKey() {
+        return visionApiKey;
+    }
+
+    public void setVisionApiKey(String visionApiKey) {
+        this.visionApiKey = visionApiKey;
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
