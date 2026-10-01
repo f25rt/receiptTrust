@@ -48,4 +48,10 @@ public class MessageController {
     public Map<String, Long> unreadCount() {
         return Map.of("count", messageService.unreadCount(currentUserService.require()));
     }
+
+    /** Unread message counts keyed by sender username (for per-friend badges). */
+    @GetMapping("/unread-by-sender")
+    public Map<String, Long> unreadBySender() {
+        return messageService.unreadBySender(currentUserService.require());
+    }
 }

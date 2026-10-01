@@ -6,7 +6,11 @@ import com.receipttrust.common.exception.ApiExceptions;
 import com.receipttrust.config.DebtProperties;
 import com.receipttrust.notification.NotificationService;
 import com.receipttrust.notification.NotificationType;
+import com.receipttrust.ocr.OcrTerm;
+import com.receipttrust.ocr.OcrVocabularyService;
 import com.receipttrust.receipt.Receipt;
+import com.receipttrust.receipt.ReceiptItem;
+import com.receipttrust.receipt.ReceiptItemRepository;
 import com.receipttrust.receipt.ReceiptRepository;
 import com.receipttrust.receipt.ReceiptService;
 import com.receipttrust.trust.TrustScoreService;
@@ -33,6 +37,8 @@ public class DebtService {
     private final DebtProperties debtProperties;
     private final TrustScoreService trustScoreService;
     private final DebtCommentRepository commentRepository;
+    private final ReceiptItemRepository receiptItemRepository;
+    private final OcrVocabularyService ocrVocabularyService;
 
     public DebtService(DebtRepository debtRepository,
                        ItemAssignmentRepository assignmentRepository,
@@ -41,7 +47,9 @@ public class DebtService {
                        NotificationService notificationService,
                        DebtProperties debtProperties,
                        TrustScoreService trustScoreService,
-                       DebtCommentRepository commentRepository) {
+                       DebtCommentRepository commentRepository,
+                       ReceiptItemRepository receiptItemRepository,
+                       OcrVocabularyService ocrVocabularyService) {
         this.debtRepository = debtRepository;
         this.assignmentRepository = assignmentRepository;
         this.receiptRepository = receiptRepository;
@@ -50,6 +58,8 @@ public class DebtService {
         this.debtProperties = debtProperties;
         this.trustScoreService = trustScoreService;
         this.commentRepository = commentRepository;
+        this.receiptItemRepository = receiptItemRepository;
+        this.ocrVocabularyService = ocrVocabularyService;
     }
 
     /**
@@ -114,6 +124,14 @@ public class DebtService {
 
         receipt.setFinalized(true);
         receiptRepository.save(receipt);
+
+        // Feed the global OCR learning vocabulary with this confirmed receipt's
+        // store name and item names, so future scans recognize them.
+        ocrVocabularyService.record(OcrTerm.Kind.STORE, receipt.getStoreName());
+        for (ReceiptItem item : receiptItemRepository.findByReceipt(receipt)) {
+            ocrVocabularyService.record(OcrTerm.Kind.ITEM, item.getName());
+        }
+
         return created;
     }
 

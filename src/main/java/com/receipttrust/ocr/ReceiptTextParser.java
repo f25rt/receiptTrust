@@ -34,6 +34,13 @@ public final class ReceiptTextParser {
             "date", "time", "tel", "phone", "www", "http", "discount", "payment",
             "qty", "item description", "price", "amount");
 
+    // Generic document headers that are NOT the store name (common at the top).
+    private static final List<String> GENERIC_HEADERS = List.of(
+            "bill", "receipt", "invoice", "official receipt", "sales invoice",
+            "order", "order slip", "tax invoice", "customer copy");
+    // "10 item(s)" summary line (the store name often precedes it on the same line).
+    private static final Pattern ITEM_COUNT = Pattern.compile("\\d+\\s*item", Pattern.CASE_INSENSITIVE);
+
     private ReceiptTextParser() {
     }
 
@@ -87,17 +94,45 @@ public final class ReceiptTextParser {
     }
 
     private static String detectStoreName(List<String> lines) {
+        // First choice: the first "real" text line that isn't a generic header
+        // ("BILL", "RECEIPT", ...), has no amounts, and isn't a known skip line.
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.ROOT);
             long letters = line.chars().filter(Character::isLetter).count();
             if (letters >= 3
                     && extractAmounts(line).isEmpty()
                     && !containsAny(lower, SKIP_KEYS)
+                    && !ITEM_COUNT.matcher(line).find()
+                    && !isGenericHeader(line)
                     && !lower.matches(".*\\d{3,}.*")) {
                 return line;
             }
         }
+        // Fallback: a summary line like "SUNBURST   10 item(s)   7:05 PM" carries
+        // the store name as the leading text before the item count.
+        for (String line : lines) {
+            Matcher m = ITEM_COUNT.matcher(line);
+            if (m.find()) {
+                String lead = line.substring(0, m.start()).strip();
+                if (lead.chars().filter(Character::isLetter).count() >= 3 && !isGenericHeader(lead)) {
+                    return lead;
+                }
+            }
+        }
+        // Last resort: the first non-generic line, else the very first line.
+        for (String line : lines) {
+            if (!isGenericHeader(line) && line.chars().filter(Character::isLetter).count() >= 3) {
+                return line;
+            }
+        }
         return lines.isEmpty() ? null : lines.get(0);
+    }
+
+    /** True when the line is just a document header (not a store name). */
+    private static boolean isGenericHeader(String line) {
+        // Normalize OCR spacing like "B I L L" -> "bill".
+        String norm = line.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+        return GENERIC_HEADERS.stream().anyMatch(h -> norm.equals(h.replaceAll("[^a-z]", "")));
     }
 
     private static OcrDtos.ParsedItem toItem(String line, List<BigDecimal> amounts) {

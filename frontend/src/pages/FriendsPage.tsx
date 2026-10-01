@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { debtApi, friendApi, profileApi } from '../api/services';
+import { debtApi, friendApi, messageApi, profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useAvatarUrl } from '../auth/useAvatarUrl';
@@ -53,20 +53,23 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<UserSummary[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [balances, setBalances] = useState<Record<string, PeerBalance>>({});
+  const [unread, setUnread] = useState<Record<string, number>>({});
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const [f, r, dash] = await Promise.all([
+      const [f, r, dash, u] = await Promise.all([
         friendApi.list(),
         friendApi.incoming(),
         debtApi.dashboard(),
+        messageApi.unreadBySender(),
       ]);
       setFriends(f.data);
       setRequests(r.data);
       setBalances(buildPeerBalances(dash.data));
+      setUnread(u.data);
     } catch (e) {
       setError(apiErrorMessage(e));
     }
@@ -76,8 +79,8 @@ export default function FriendsPage() {
     load();
   }, []);
 
-  // Live refresh on server push (friend requests/accepts), slow poll fallback.
-  useRealtimeEvent(['notification', 'assignment'], load);
+  // Live refresh on server push (friend requests/accepts, new messages), slow poll fallback.
+  useRealtimeEvent(['notification', 'assignment', 'message'], load);
   usePolling(load, 30000);
 
   // Live search as the user types (debounced).
@@ -281,10 +284,18 @@ export default function FriendsPage() {
 
                 <div className="flex items-center gap-space-sm pt-space-xs border-t border-white/[0.05]">
                   <button
-                    className="btn-glass flex-1"
-                    onClick={() => navigate(`/messages/${f.username}`)}
+                    className="btn-glass flex-1 relative"
+                    onClick={() => {
+                      setUnread((prev) => ({ ...prev, [f.username]: 0 }));
+                      navigate(`/messages/${f.username}`);
+                    }}
                   >
                     <Icon name="chat" className="text-[16px]" /> Message
+                    {unread[f.username] > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full bg-secondary text-on-secondary text-[11px] font-label-sm flex items-center justify-center">
+                        {unread[f.username] > 99 ? '99+' : unread[f.username]}
+                      </span>
+                    )}
                   </button>
                   {bal?.debtId ? (
                     <button

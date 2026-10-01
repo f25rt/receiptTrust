@@ -29,4 +29,19 @@ public interface DirectMessageRepository extends JpaRepository<DirectMessage, Lo
     int markConversationRead(@Param("me") Long me, @Param("other") Long other);
 
     long countByRecipientAndReadByRecipientFalse(User recipient);
+
+    /** Unread message counts for :me, grouped by sender username. */
+    @Query("""
+            select m.sender.username as username, count(m) as cnt
+            from DirectMessage m
+            where m.recipient.id = :me and m.readByRecipient = false
+            group by m.sender.username
+            """)
+    List<UnreadBySender> countUnreadGroupedBySender(@Param("me") Long me);
+
+    /** Projection for per-sender unread counts. */
+    interface UnreadBySender {
+        String getUsername();
+        long getCnt();
+    }
 }

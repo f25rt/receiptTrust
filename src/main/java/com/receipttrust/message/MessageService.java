@@ -58,6 +58,16 @@ public class MessageService {
         return messageRepository.countByRecipientAndReadByRecipientFalse(me);
     }
 
+    /** Unread message counts keyed by sender username, for badges on the friends list. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> unreadBySender(User me) {
+        java.util.Map<String, Long> result = new java.util.HashMap<>();
+        for (var row : messageRepository.countUnreadGroupedBySender(me.getId())) {
+            result.put(row.getUsername(), row.getCnt());
+        }
+        return result;
+    }
+
     private User requireFriend(User me, String otherUsername) {
         User other = userRepository.findByUsername(otherUsername)
                 .orElseThrow(() -> new ApiExceptions.ResourceNotFoundException("User not found"));

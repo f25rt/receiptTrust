@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -26,9 +29,11 @@ public class OcrService {
     private static final Logger log = LoggerFactory.getLogger(OcrService.class);
 
     private final OcrProperties properties;
+    private final OcrVocabularyService vocabulary;
 
-    public OcrService(OcrProperties properties) {
+    public OcrService(OcrProperties properties, OcrVocabularyService vocabulary) {
         this.properties = properties;
+        this.vocabulary = vocabulary;
     }
 
     /** Common tessdata locations, tried when the configured path is missing. */
@@ -64,6 +69,7 @@ public class OcrService {
                 log.warn("OCR could not decode uploaded image (content-type {})", contentType);
                 return OcrDtos.ReceiptDraft.empty();
             }
+            image = preprocess(image);
             Tesseract tesseract = new Tesseract();
             tesseract.setDatapath(dataDir.getAbsolutePath());
             tesseract.setLanguage(properties.getLanguage());
@@ -71,7 +77,7 @@ public class OcrService {
             String text = tesseract.doOCR(image);
             log.info("OCR read {} chars using tessdata at {}",
                     text == null ? 0 : text.length(), dataDir.getAbsolutePath());
-            return ReceiptTextParser.parse(text);
+            return applyVocabulary(ReceiptTextParser.parse(text));
         } catch (IOException e) {
             log.warn("Failed to read image for OCR: {}", e.getMessage());
             return OcrDtos.ReceiptDraft.empty();
@@ -107,5 +113,51 @@ public class OcrService {
 
     private boolean hasTraineddata(File dir, String lang) {
         return dir.isDirectory() && new File(dir, lang + ".traineddata").isFile();
+    }
+
+    /**
+     * Snaps the parsed store name and item names to known confirmed terms when a
+     * close match exists in the global vocabulary. This is how recognition
+     * improves over time without retraining Tesseract.
+     */
+    private OcrDtos.ReceiptDraft applyVocabulary(OcrDtos.ReceiptDraft draft) {
+        String store = draft.storeName();
+        if (store != null) {
+            store = vocabulary.correct(OcrTerm.Kind.STORE, store).orElse(store);
+        }
+        java.util.List<OcrDtos.ParsedItem> items = new java.util.ArrayList<>();
+        for (OcrDtos.ParsedItem item : draft.items()) {
+            String name = vocabulary.correct(OcrTerm.Kind.ITEM, item.name()).orElse(item.name());
+            items.add(new OcrDtos.ParsedItem(name, item.quantity(), item.unitPrice()));
+        }
+        return new OcrDtos.ReceiptDraft(store, items, draft.serviceCharge(), draft.total(), draft.rawText());
+    }
+
+    /**
+     * Light preprocessing to improve OCR on phone photos: upscale small images so
+     * text is tall enough for Tesseract, and convert to grayscale (reduces color
+     * noise from the receipt/background). Kept intentionally simple and
+     * dependency-free; heavier deskew/binarization would need OpenCV.
+     */
+    private BufferedImage preprocess(BufferedImage src) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+        if (w <= 0 || h <= 0) {
+            return src;
+        }
+        // Tesseract likes ~1500-2000px on the long edge; upscale smaller images.
+        double targetLongEdge = 1600.0;
+        double longEdge = Math.max(w, h);
+        double scale = longEdge < targetLongEdge ? Math.min(3.0, targetLongEdge / longEdge) : 1.0;
+        int nw = (int) Math.round(w * scale);
+        int nh = (int) Math.round(h * scale);
+
+        BufferedImage gray = new BufferedImage(nw, nh, BufferedImage.TYPE_BYTE_GRAY);
+        Graphics2D g = gray.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.drawImage(src.getScaledInstance(nw, nh, Image.SCALE_SMOOTH), 0, 0, null);
+        g.dispose();
+        return gray;
     }
 }

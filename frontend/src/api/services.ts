@@ -122,6 +122,7 @@ export const messageApi = {
   send: (username: string, body: string) =>
     api.post<DirectMessage>(`/messages/${username}`, { body }),
   unreadCount: () => api.get<{ count: number }>('/messages/unread-count'),
+  unreadBySender: () => api.get<Record<string, number>>('/messages/unread-by-sender'),
 };
 
 export const notificationApi = {
