@@ -1,15 +1,32 @@
-import type { ReputationLevel } from '../api/types';
+import type { Currency, ReputationLevel } from '../api/types';
 
-/** Format a monetary value as a plain currency string. */
-export function money(value: string | number): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  return `$${n.toFixed(2)}`;
+const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  USD: '$',
+  PHP: '₱',
+};
+
+// App-wide display currency, set from the logged-in user's profile. Defaults to
+// USD until a profile loads. Updated via setDisplayCurrency() in AuthContext.
+let displayCurrency: Currency = 'USD';
+
+export function setDisplayCurrency(currency: Currency | null | undefined) {
+  displayCurrency = currency === 'PHP' ? 'PHP' : 'USD';
 }
 
-/** Signed currency, e.g. +$142.50 / -$38.00. */
+export function currencySymbol(currency?: Currency): string {
+  return CURRENCY_SYMBOLS[currency ?? displayCurrency] ?? '$';
+}
+
+/** Format a monetary value using the active display currency. */
+export function money(value: string | number): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return `${currencySymbol()}${n.toFixed(2)}`;
+}
+
+/** Signed currency, e.g. +$142.50 / -₱38.00. */
 export function signedMoney(value: string | number, positive: boolean): string {
   const n = Math.abs(typeof value === 'string' ? Number(value) : value);
-  return `${positive ? '+' : '-'}$${n.toFixed(2)}`;
+  return `${positive ? '+' : '-'}${currencySymbol()}${n.toFixed(2)}`;
 }
 
 export interface TrustTier {

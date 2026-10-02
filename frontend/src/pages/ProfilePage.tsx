@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { profileApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useAvatarUrl } from '../auth/useAvatarUrl';
 import { Avatar, Card, ErrorBanner, Icon } from '../components/ui';
 import { trustTier, reputationLabel, nextTier, pointsToNextTier } from '../lib/format';
+import type { Currency } from '../api/types';
 
 const REPUTATION_MAX = 1000;
 
@@ -146,6 +147,9 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Personal details (editable) */}
+      <PersonalDetailsCard />
+
       {/* Avatar upload */}
       <Card className="flex flex-col gap-space-sm">
         <span className="font-headline-sm text-on-surface">Profile image</span>
@@ -185,6 +189,137 @@ function Metric({ icon, label, value }: { icon: string; label: string; value: nu
       <Icon name={icon} className="text-secondary text-[22px]" />
       <span className="font-headline-md text-on-surface">{value}</span>
       <span className="font-label-sm text-on-surface-variant">{label}</span>
+    </div>
+  );
+}
+
+function PersonalDetailsCard() {
+  const { profile, refreshProfile } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [currency, setCurrency] = useState<Currency>(profile?.currency ?? 'USD');
+  const [mobile, setMobile] = useState(profile?.mobile ?? '');
+  const [gender, setGender] = useState(profile?.gender ?? '');
+  const [country, setCountry] = useState(profile?.country ?? '');
+  const [city, setCity] = useState(profile?.city ?? '');
+
+  if (!profile) return null;
+
+  const startEdit = () => {
+    // Seed inputs from the current profile each time editing begins.
+    setCurrency(profile.currency ?? 'USD');
+    setMobile(profile.mobile ?? '');
+    setGender(profile.gender ?? '');
+    setCountry(profile.country ?? '');
+    setCity(profile.city ?? '');
+    setError(null);
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+    setError(null);
+  };
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await profileApi.updateProfile({ currency, mobile, gender, country, city });
+      await refreshProfile();
+      setEditing(false);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const display = (v: string | null | undefined) =>
+    v && v.trim() ? v : <span className="text-outline">Not set</span>;
+
+  return (
+    <Card className="flex flex-col gap-space-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-headline-sm text-on-surface">Personal details</span>
+        {!editing && (
+          <button
+            type="button"
+            className="font-label-md text-primary flex items-center gap-space-2xs"
+            onClick={startEdit}
+          >
+            <Icon name="edit" className="text-[16px]" /> Edit
+          </button>
+        )}
+      </div>
+
+      <ErrorBanner message={error} />
+
+      {!editing ? (
+        <div className="flex flex-col gap-space-xs">
+          <DetailRow label="Currency" value={profile.currency === 'PHP' ? 'PHP (₱)' : 'USD ($)'} />
+          <DetailRow label="Mobile" value={display(profile.mobile)} />
+          <DetailRow label="Gender" value={display(profile.gender)} />
+          <DetailRow label="Country" value={display(profile.country)} />
+          <DetailRow label="City / Address" value={display(profile.city)} />
+        </div>
+      ) : (
+        <form className="flex flex-col gap-space-sm" onSubmit={save}>
+          <div>
+            <label className="field-label">Currency</label>
+            <div className="flex items-center p-1 bg-surface-container-high rounded-full self-start w-max">
+              {(['USD', 'PHP'] as Currency[]).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  className={`px-space-md py-1 rounded-full font-label-md transition-all ${
+                    currency === c ? 'bg-primary-container text-on-primary' : 'text-on-surface-variant'
+                  }`}
+                >
+                  {c === 'USD' ? 'USD ($)' : 'PHP (₱)'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="field-label">Mobile</label>
+            <input className="field-input" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="e.g. +63 912 345 6789" />
+          </div>
+          <div>
+            <label className="field-label">Gender</label>
+            <input className="field-input" value={gender} onChange={(e) => setGender(e.target.value)} placeholder="e.g. Female / Male / Prefer not to say" />
+          </div>
+          <div>
+            <label className="field-label">Country</label>
+            <input className="field-input" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Philippines" />
+          </div>
+          <div>
+            <label className="field-label">City / Address</label>
+            <input className="field-input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Quezon City" />
+          </div>
+          <div className="flex gap-space-sm pt-space-2xs">
+            <button type="button" className="btn-glass flex-1" onClick={cancel} disabled={busy}>
+              Cancel
+            </button>
+            <button className="btn-primary flex-1" disabled={busy}>
+              <Icon name="save" className="text-[16px]" /> {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Card>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-space-2xs border-b border-white/[0.05] last:border-0">
+      <span className="font-label-sm text-on-surface-variant">{label}</span>
+      <span className="font-body-md text-on-surface text-right">{value}</span>
     </div>
   );
 }

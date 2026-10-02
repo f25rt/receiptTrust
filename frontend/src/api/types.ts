@@ -13,6 +13,8 @@ export type ReputationLevel = 'POOR' | 'FAIR' | 'GOOD' | 'VERY_GOOD' | 'EXCELLEN
 
 export type AuthProvider = 'LOCAL' | 'GOOGLE' | 'FACEBOOK';
 
+export type Currency = 'USD' | 'PHP';
+
 export interface MyProfile {
   id: number;
   fullName: string;
@@ -26,6 +28,20 @@ export interface MyProfile {
   averageRepaymentDays: number | null;
   provider: AuthProvider;
   hasPassword: boolean;
+  currency: Currency;
+  mobile: string | null;
+  gender: string | null;
+  country: string | null;
+  city: string | null;
+}
+
+/** Editable profile fields sent to PUT /me/profile. */
+export interface UpdateProfileRequest {
+  currency?: Currency;
+  mobile?: string | null;
+  gender?: string | null;
+  country?: string | null;
+  city?: string | null;
 }
 
 export interface PublicProfile {
@@ -50,6 +66,7 @@ export interface UserSummary {
   fullName: string;
   username: string;
   trustScore: number;
+  mobile: string | null;
 }
 
 export interface FriendRequest {

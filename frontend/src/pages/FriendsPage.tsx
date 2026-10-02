@@ -256,6 +256,12 @@ export default function FriendsPage() {
                         <span className="font-headline-sm text-on-surface truncate">{f.fullName}</span>
                       </div>
                       <span className="font-body-sm text-on-surface-variant truncate">@{f.username}</span>
+                      {f.mobile && (
+                        <span className="font-label-sm text-on-surface-variant truncate flex items-center gap-space-2xs">
+                          <Icon name="call" className="text-[12px]" />
+                          {f.mobile}
+                        </span>
+                      )}
                       <span className={`pill ${tier.bg} ${tier.color} mt-space-2xs self-start`}>
                         {f.trustScore} ⭐ {tier.label}
                       </span>

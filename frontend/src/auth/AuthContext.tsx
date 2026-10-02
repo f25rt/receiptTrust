@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import { AUTH_LOGOUT_EVENT, tokenStore } from '../api/client';
 import { authApi, profileApi } from '../api/services';
 import type { MyProfile } from '../api/types';
+import { setDisplayCurrency } from '../lib/format';
 
 interface AuthState {
   profile: MyProfile | null;
@@ -22,11 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async () => {
     if (!tokenStore.access) {
       setProfile(null);
+      setDisplayCurrency('USD');
       return;
     }
     try {
       const resp = await profileApi.me();
       setProfile(resp.data);
+      setDisplayCurrency(resp.data.currency);
     } catch {
       setProfile(null);
     }
@@ -82,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     tokenStore.clear();
     setProfile(null);
+    setDisplayCurrency('USD');
   };
 
   const value = useMemo<AuthState>(

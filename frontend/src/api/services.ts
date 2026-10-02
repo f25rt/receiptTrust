@@ -21,6 +21,7 @@ import type {
   SearchResult,
   SplitType,
   TokenResponse,
+  UpdateProfileRequest,
   FriendRequest,
   UserSummary,
 } from './types';
@@ -45,6 +46,7 @@ export const profileApi = {
     return api.post<MyProfile>('/me/profile-image', form);
   },
   setPassword: (password: string) => api.post<MyProfile>('/me/password', { password }),
+  updateProfile: (body: UpdateProfileRequest) => api.put<MyProfile>('/me/profile', body),
 };
 
 export const friendApi = {

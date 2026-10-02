@@ -47,6 +47,22 @@ public class User extends BaseEntity {
     @Column(name = "provider_subject")
     private String providerSubject;
 
+    /** Preferred display currency: "USD" (default) or "PHP". */
+    @Column(nullable = false, length = 3)
+    private String currency = "USD";
+
+    @Column(name = "mobile")
+    private String mobile;
+
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "country")
+    private String country;
+
+    @Column(name = "city")
+    private String city;
+
     protected User() {
     }
 
@@ -148,5 +164,45 @@ public class User extends BaseEntity {
 
     public void setProviderSubject(String providerSubject) {
         this.providerSubject = providerSubject;
+    }
+
+    public String getCurrency() {
+        return currency == null ? "USD" : currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
+    }
+
+    public String getMobile() {
+        return mobile;
+    }
+
+    public void setMobile(String mobile) {
+        this.mobile = mobile;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
     }
 }

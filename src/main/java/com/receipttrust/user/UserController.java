@@ -46,7 +46,37 @@ public class UserController {
                 metricsService.currentDebts(me),
                 metricsService.averageRepaymentDays(me),
                 me.getProvider(),
-                me.hasPassword());
+                me.hasPassword(),
+                me.getCurrency(),
+                me.getMobile(), me.getGender(), me.getCountry(), me.getCity());
+    }
+
+    /** Updates the owner's editable profile fields (currency + contact details). */
+    @org.springframework.web.bind.annotation.PutMapping("/api/me/profile")
+    public UserDtos.MyProfileResponse updateProfile(
+            @org.springframework.web.bind.annotation.RequestBody UserDtos.UpdateProfileRequest request) {
+        User me = currentUserService.require();
+        if (request.currency() != null) {
+            String c = request.currency().trim().toUpperCase();
+            if (!c.equals("USD") && !c.equals("PHP")) {
+                throw new ApiExceptions.ValidationException("Unsupported currency: " + request.currency());
+            }
+            me.setCurrency(c);
+        }
+        me.setMobile(trimToNull(request.mobile()));
+        me.setGender(trimToNull(request.gender()));
+        me.setCountry(trimToNull(request.country()));
+        me.setCity(trimToNull(request.city()));
+        userRepository.save(me);
+        return me();
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.strip();
+        return t.isEmpty() ? null : t;
     }
 
     @GetMapping("/api/users/{username}")

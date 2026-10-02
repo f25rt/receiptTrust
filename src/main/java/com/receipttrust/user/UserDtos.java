@@ -20,7 +20,22 @@ public final class UserDtos {
             long currentDebts,
             Double averageRepaymentDays,
             AuthProvider provider,
-            boolean hasPassword
+            boolean hasPassword,
+            String currency,
+            String mobile,
+            String gender,
+            String country,
+            String city
+    ) {
+    }
+
+    /** Editable profile fields the owner can update from their profile page. */
+    public record UpdateProfileRequest(
+            String currency,
+            String mobile,
+            String gender,
+            String country,
+            String city
     ) {
     }
 
