@@ -26,8 +26,25 @@ public final class ReceiptTextParser {
     // Group 1 = the whole numeric token incl. separators; the decimal part is the
     // last 2 digits after the final separator (resolved in parseMoney()).
     private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:[.,]\\d{3})*[.,]\\d{2}|\\d+[.,]\\d{2})");
+    // A bare integer amount (no cents), e.g. "220". Bounded by word edges so it
+    // isn't a fragment of a longer number. Used only for receipts that print
+    // whole-number prices (common for peso receipts).
+    private static final Pattern INT_AMOUNT = Pattern.compile("(?<![\\d.,-])(\\d{1,6})(?![\\d.,:/-])");
     // Leading quantity column: "2x", "2 x", or just "2 " at the very start.
     private static final Pattern QTY_PREFIX = Pattern.compile("^\\s*(\\d{1,3})\\s*[xX]?\\s+");
+
+    // Lines that are identifiers/metadata (TIN, invoice no., MIN, serial, dates,
+    // phone, bill no.) whose digits must never be read as money amounts.
+    private static final Pattern IDENTIFIER_LINE = Pattern.compile(
+            "(tin|min|s/n|s\\.n|inv\\b|invoice|reg\\b|no\\.|number|serial|bill|#|\\d{1,2}[:/]\\d{2})",
+            Pattern.CASE_INSENSITIVE);
+    // A long unbroken digit run (invoice/serial) — never an amount.
+    private static final Pattern LONG_DIGIT_RUN = Pattern.compile("\\d{7,}");
+    // A 4-digit year (date lines like "Sep 07, 2026" have no decimal amounts and
+    // must not fall through to the integer-amount reader).
+    private static final Pattern YEAR = Pattern.compile("\\b(19|20)\\d{2}\\b");
+    private static final Pattern MONTH_NAME = Pattern.compile(
+            "\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\b", Pattern.CASE_INSENSITIVE);
 
     private static final List<String> TOTAL_KEYS = List.of("total", "amount due", "balance due", "grand total");
     private static final List<String> SERVICE_KEYS = List.of("service charge", "service", "svc charge", "gratuity", "tip");
@@ -228,7 +245,32 @@ public final class ReceiptTextParser {
                 out.add(v);
             }
         }
+        if (!out.isEmpty()) {
+            return out;
+        }
+        // Fallback: receipts that print whole-number prices (e.g. "220", "24").
+        // Only when the line has no decimal amounts and is not an identifier line
+        // (TIN / invoice / serial / date), to avoid reading ID digits as money.
+        if (isIdentifierLine(line)) {
+            return out;
+        }
+        Matcher im = INT_AMOUNT.matcher(line);
+        while (im.find()) {
+            try {
+                out.add(new BigDecimal(im.group(1)));
+            } catch (NumberFormatException ignored) {
+                // skip
+            }
+        }
         return out;
+    }
+
+    /** True when a line holds identifier/metadata digits that are not amounts. */
+    private static boolean isIdentifierLine(String line) {
+        return LONG_DIGIT_RUN.matcher(line).find()
+                || IDENTIFIER_LINE.matcher(line).find()
+                || YEAR.matcher(line).find()
+                || MONTH_NAME.matcher(line).find();
     }
 
     /**

@@ -141,6 +141,39 @@ class ReceiptTextParserTest {
     }
 
     @Test
+    void parsesWholeNumberAmountsAndIgnoresIdentifierDigits() {
+        // Starbucks-style receipt: integer prices (no cents), store name at top,
+        // and identifier lines (TIN, invoice no., MIN/SN) that must NOT be read
+        // as amounts.
+        String text = String.join("\n",
+                "Starbucks Coffee",
+                "OPD by: Rustan Coffee Corp.",
+                "VAT Reg. TIN: 005-215-077-411",
+                "MIN:19042313582233200 /S/N: KSHC0089",
+                "10/07/26  1:47 PM",
+                "Inv. No.:0000000000000863715",
+                "Item          Price  Qty  Amount",
+                "G-BLND DMF    220    1    220 VA",
+                "Total Php                   220",
+                "Number of Items:              1");
+
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(text);
+
+        assertThat(draft.storeName()).isEqualTo("Starbucks Coffee");
+        assertThat(draft.total()).isEqualByComparingTo("220");
+
+        // The single item is captured with its whole-number price.
+        assertThat(draft.items()).anySatisfy(it -> {
+            assertThat(it.name()).contains("G-BLND");
+            assertThat(it.quantity()).isEqualTo(1);
+            assertThat(it.unitPrice()).isEqualByComparingTo("220");
+        });
+        // TIN / invoice / MIN digits must not appear as item prices.
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.unitPrice()).isEqualByComparingTo("863715"));
+    }
+
+    @Test
     void capturesTaxAndServiceChargeSeparately() {
         OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(String.join("\n",
                 "The Daily Bite",

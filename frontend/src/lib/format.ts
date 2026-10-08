@@ -17,16 +17,21 @@ export function currencySymbol(currency?: Currency): string {
   return CURRENCY_SYMBOLS[currency ?? displayCurrency] ?? '$';
 }
 
-/** Format a monetary value using the active display currency. */
-export function money(value: string | number): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  return `${currencySymbol()}${n.toFixed(2)}`;
+/** Rounds to a whole number and groups thousands, e.g. 1523.09 -> "1,523". */
+function wholeAmount(n: number): string {
+  return Math.round(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-/** Signed currency, e.g. +$142.50 / -₱38.00. */
+/** Format a monetary value using the active display currency (no decimals). */
+export function money(value: string | number): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return `${currencySymbol()}${wholeAmount(n)}`;
+}
+
+/** Signed currency, no decimals, e.g. +$143 / -₱38. */
 export function signedMoney(value: string | number, positive: boolean): string {
   const n = Math.abs(typeof value === 'string' ? Number(value) : value);
-  return `${positive ? '+' : '-'}${currencySymbol()}${n.toFixed(2)}`;
+  return `${positive ? '+' : '-'}${currencySymbol()}${wholeAmount(n)}`;
 }
 
 export interface TrustTier {

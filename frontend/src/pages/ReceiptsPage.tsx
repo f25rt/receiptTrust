@@ -251,7 +251,7 @@ export default function ReceiptsPage() {
                   className="field-input w-20 px-2"
                   value={it.unitPrice}
                   onChange={(e) => updateItem(i, { unitPrice: e.target.value })}
-                  placeholder="0.00"
+                  placeholder="0"
                 />
                 <button
                   type="button"
