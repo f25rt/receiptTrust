@@ -21,6 +21,7 @@ public final class OcrDtos {
      */
     public record ReceiptDraft(
             String storeName,
+            String invoiceNumber,
             List<ParsedItem> items,
             BigDecimal serviceCharge,
             BigDecimal tax,
@@ -28,7 +29,7 @@ public final class OcrDtos {
             String rawText
     ) {
         public static ReceiptDraft empty() {
-            return new ReceiptDraft(null, List.of(), null, null, null, "");
+            return new ReceiptDraft(null, null, List.of(), null, null, null, "");
         }
     }
 }

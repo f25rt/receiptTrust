@@ -17,6 +17,7 @@ public final class ReceiptDtos {
             Long id,
             Long ownerId,
             String storeName,
+            String invoiceNumber,
             LocalDate purchaseDate,
             String notes,
             String imageContentType,
@@ -25,7 +26,7 @@ public final class ReceiptDtos {
     ) {
         public static ReceiptResponse from(Receipt r) {
             return new ReceiptResponse(r.getId(), r.getOwner().getId(), r.getStoreName(),
-                    r.getPurchaseDate(), r.getNotes(), r.getImageContentType(),
+                    r.getInvoiceNumber(), r.getPurchaseDate(), r.getNotes(), r.getImageContentType(),
                     r.hasImage(), r.isFinalized());
         }
     }

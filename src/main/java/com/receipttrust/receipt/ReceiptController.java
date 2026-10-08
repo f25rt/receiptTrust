@@ -57,10 +57,11 @@ public class ReceiptController {
             @RequestParam("storeName") String storeName,
             @RequestParam("purchaseDate") LocalDate purchaseDate,
             @RequestParam(value = "notes", required = false) String notes,
+            @RequestParam(value = "invoiceNumber", required = false) String invoiceNumber,
             @RequestParam(value = "image", required = false) MultipartFile image) {
         User me = currentUserService.require();
         return ReceiptDtos.ReceiptResponse.from(
-                receiptService.create(me, storeName, purchaseDate, notes, image));
+                receiptService.create(me, storeName, purchaseDate, notes, invoiceNumber, image));
     }
 
     @GetMapping("/{id}")

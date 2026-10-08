@@ -45,6 +45,11 @@ public final class ReceiptTextParser {
     private static final Pattern YEAR = Pattern.compile("\\b(19|20)\\d{2}\\b");
     private static final Pattern MONTH_NAME = Pattern.compile(
             "\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\b", Pattern.CASE_INSENSITIVE);
+    // Invoice / receipt / OR number, e.g. "Inv. No.:0000000000000863715",
+    // "Invoice #: 12345", "OR No. 00897". Captures the alphanumeric id after the label.
+    private static final Pattern INVOICE_NO = Pattern.compile(
+            "(?:invoice|inv|receipt|or)\\.?\\s*(?:no\\.?|number|#)?\\s*[:.#]?\\s*([A-Za-z0-9-]*\\d[A-Za-z0-9-]*)",
+            Pattern.CASE_INSENSITIVE);
 
     private static final List<String> TOTAL_KEYS = List.of("total", "amount due", "balance due", "grand total");
     private static final List<String> SERVICE_KEYS = List.of("service charge", "service", "svc charge", "gratuity", "tip");
@@ -80,6 +85,7 @@ public final class ReceiptTextParser {
         }
 
         String storeName = detectStoreName(lines);
+        String invoiceNumber = detectInvoiceNumber(lines);
         BigDecimal serviceCharge = null;
         BigDecimal tax = null;
         BigDecimal total = null;
@@ -119,7 +125,22 @@ public final class ReceiptTextParser {
             }
         }
 
-        return new OcrDtos.ReceiptDraft(storeName, items, serviceCharge, tax, total, rawText);
+        return new OcrDtos.ReceiptDraft(storeName, invoiceNumber, items, serviceCharge, tax, total, rawText);
+    }
+
+    /** Extracts the invoice/receipt number from a label line, if present. */
+    private static String detectInvoiceNumber(List<String> lines) {
+        for (String line : lines) {
+            Matcher m = INVOICE_NO.matcher(line);
+            if (m.find()) {
+                String id = m.group(1).strip();
+                // Must contain at least one digit (avoid matching stray words).
+                if (id.chars().anyMatch(Character::isDigit)) {
+                    return id;
+                }
+            }
+        }
+        return null;
     }
 
     private static String detectStoreName(List<String> lines) {

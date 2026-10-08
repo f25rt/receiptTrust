@@ -26,6 +26,10 @@ public class Receipt extends BaseEntity {
     @Column(name = "store_name", nullable = false)
     private String storeName;
 
+    /** Receipt/invoice number from the printed receipt, kept as proof. Optional. */
+    @Column(name = "invoice_number")
+    private String invoiceNumber;
+
     @Column(name = "purchase_date", nullable = false)
     private LocalDate purchaseDate;
 
@@ -80,6 +84,14 @@ public class Receipt extends BaseEntity {
 
     public void setStoreName(String storeName) {
         this.storeName = storeName;
+    }
+
+    public String getInvoiceNumber() {
+        return invoiceNumber;
+    }
+
+    public void setInvoiceNumber(String invoiceNumber) {
+        this.invoiceNumber = invoiceNumber;
     }
 
     public LocalDate getPurchaseDate() {

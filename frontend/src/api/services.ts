@@ -65,11 +65,18 @@ export const receiptApi = {
     form.append('image', image);
     return api.post<ReceiptDraft>('/receipts/scan', form);
   },
-  create: (storeName: string, purchaseDate: string, notes: string, image: File | null) => {
+  create: (
+    storeName: string,
+    purchaseDate: string,
+    notes: string,
+    invoiceNumber: string,
+    image: File | null
+  ) => {
     const form = new FormData();
     form.append('storeName', storeName);
     form.append('purchaseDate', purchaseDate);
     if (notes) form.append('notes', notes);
+    if (invoiceNumber) form.append('invoiceNumber', invoiceNumber);
     if (image) form.append('image', image);
     return api.post<Receipt>('/receipts', form);
   },

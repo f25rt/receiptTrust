@@ -47,6 +47,7 @@ public final class DebtDtos {
             Long debtId,
             String paidByUsername,
             String storeName,
+            String invoiceNumber,
             LocalDate purchaseDate,
             List<ExplanationItem> items,
             Long receiptId,

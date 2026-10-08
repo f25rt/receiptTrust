@@ -21,6 +21,7 @@ const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
 export default function ReceiptsPage() {
   const navigate = useNavigate();
   const [storeName, setStoreName] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<File | null>(null);
@@ -67,6 +68,7 @@ export default function ReceiptsPage() {
     try {
       const { data } = await receiptApi.scan(file);
       if (data.storeName) setStoreName(data.storeName);
+      if (data.invoiceNumber) setInvoiceNumber(data.invoiceNumber);
       setItems(
         (data.items ?? []).map((p: ParsedItem) => ({
           name: p.name,
@@ -112,7 +114,7 @@ export default function ReceiptsPage() {
     // Image is optional — a receipt can be created with fully manual details.
     setBusy(true);
     try {
-      const r = await receiptApi.create(storeName, purchaseDate, notes, image);
+      const r = await receiptApi.create(storeName, purchaseDate, notes, invoiceNumber, image);
       // Seed the parsed/edited items onto the new receipt.
       for (const it of items) {
         if (it.name.trim() && Number(it.unitPrice) > 0) {
@@ -214,6 +216,16 @@ export default function ReceiptsPage() {
               value={purchaseDate}
               onChange={(e) => setPurchaseDate(e.target.value)}
               required
+            />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="invoice">Invoice / receipt no. (optional)</label>
+            <input
+              id="invoice"
+              className="field-input"
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              placeholder="Auto-filled from the receipt — kept as proof"
             />
           </div>
 

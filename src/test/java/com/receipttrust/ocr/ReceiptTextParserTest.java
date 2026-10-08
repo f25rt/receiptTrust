@@ -161,6 +161,8 @@ class ReceiptTextParserTest {
 
         assertThat(draft.storeName()).isEqualTo("Starbucks Coffee");
         assertThat(draft.total()).isEqualByComparingTo("220");
+        // Invoice number captured from "Inv. No.:0000000000000863715".
+        assertThat(draft.invoiceNumber()).isEqualTo("0000000000000863715");
 
         // The single item is captured with its whole-number price.
         assertThat(draft.items()).anySatisfy(it -> {

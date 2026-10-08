@@ -79,6 +79,7 @@ export interface Receipt {
   id: number;
   ownerId: number;
   storeName: string;
+  invoiceNumber: string | null;
   purchaseDate: string;
   notes: string | null;
   imageContentType: string | null;
@@ -152,6 +153,7 @@ export interface ParsedItem {
 
 export interface ReceiptDraft {
   storeName: string | null;
+  invoiceNumber: string | null;
   items: ParsedItem[];
   serviceCharge: string | null;
   tax: string | null;
@@ -177,6 +179,7 @@ export interface DebtExplanation {
   debtId: number;
   paidByUsername: string;
   storeName: string;
+  invoiceNumber: string | null;
   purchaseDate: string;
   items: ExplanationItem[];
   receiptId: number;

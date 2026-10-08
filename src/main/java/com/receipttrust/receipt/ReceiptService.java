@@ -37,7 +37,7 @@ public class ReceiptService {
 
     @Transactional
     public Receipt create(User owner, String storeName, LocalDate purchaseDate,
-                          String notes, MultipartFile image) {
+                          String notes, String invoiceNumber, MultipartFile image) {
         if (storeName == null || storeName.isBlank()) {
             throw new ApiExceptions.ValidationException("Store name is required");
         }
@@ -56,6 +56,9 @@ public class ReceiptService {
         }
         Receipt receipt = new Receipt(owner, storeName, purchaseDate, notes,
                 imagePath, imageContentType);
+        if (invoiceNumber != null && !invoiceNumber.isBlank()) {
+            receipt.setInvoiceNumber(invoiceNumber.strip());
+        }
         return receiptRepository.save(receipt);
     }
 

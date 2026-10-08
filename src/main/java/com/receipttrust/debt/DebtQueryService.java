@@ -74,6 +74,7 @@ public class DebtQueryService {
                 debt.getId(),
                 debt.getCreditor().getUsername(),
                 debt.getReceipt().getStoreName(),
+                debt.getReceipt().getInvoiceNumber(),
                 debt.getPurchaseDate(),
                 items,
                 debt.getReceipt().getId(),

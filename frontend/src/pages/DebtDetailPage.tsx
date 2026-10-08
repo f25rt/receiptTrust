@@ -251,6 +251,15 @@ export default function DebtDetailPage() {
             <p className="font-headline-sm text-on-surface truncate">{explanation.storeName}</p>
           </div>
         </div>
+        {explanation.invoiceNumber && (
+          <div className="rt-card-inner flex items-center gap-space-sm">
+            <Icon name="receipt" className="text-secondary text-[18px] shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="font-label-sm text-on-surface-variant">Invoice / receipt no.</span>
+              <p className="font-body-md text-on-surface break-all">{explanation.invoiceNumber}</p>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col gap-space-2xs">
           {explanation.items.map((it, i) => (
             <div key={i} className="flex items-center justify-between py-space-2xs border-b border-white/[0.05] last:border-0">

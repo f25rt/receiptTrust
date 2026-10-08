@@ -108,7 +108,8 @@ public class OcrService {
             String name = vocabulary.correct(OcrTerm.Kind.ITEM, item.name()).orElse(item.name());
             items.add(new OcrDtos.ParsedItem(name, item.quantity(), item.unitPrice()));
         }
-        return new OcrDtos.ReceiptDraft(store, items, draft.serviceCharge(), draft.tax(), draft.total(), draft.rawText());
+        return new OcrDtos.ReceiptDraft(store, draft.invoiceNumber(), items, draft.serviceCharge(),
+                draft.tax(), draft.total(), draft.rawText());
     }
 
     /**
