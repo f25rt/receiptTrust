@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi } from '../api/services';
+import { adminApi, taxApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { AdminMetrics, AdminMetricPoint, AdminUser } from '../api/types';
+import type { AdminMetrics, AdminMetricPoint, AdminUser, TaxSetting } from '../api/types';
 import { Card, Empty, ErrorBanner, Icon } from '../components/ui';
 import { usePolling } from '../lib/usePolling';
 
@@ -124,6 +124,9 @@ export default function AdminPage() {
             <RankCard title="Highest trust" users={metrics.topTrust} />
             <RankCard title="Lowest trust" users={metrics.bottomTrust} />
           </div>
+
+          {/* Country tax / VAT settings */}
+          <TaxSettingsCard onError={setError} />
 
           {/* User management */}
           <Card className="flex flex-col gap-space-sm">
@@ -292,5 +295,239 @@ function RankCard({ title, users }: { title: string; users: AdminUser[] }) {
         ))
       )}
     </Card>
+  );
+}
+
+/**
+ * Admin manager for per-country VAT/tax settings. Admins add a country, set its
+ * rate, and choose whether tax is included in prices or added on top. These feed
+ * the receipt page's VAT defaults.
+ */
+function TaxSettingsCard({ onError }: { onError: (m: string | null) => void }) {
+  const [rows, setRows] = useState<TaxSetting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newCode, setNewCode] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newRate, setNewRate] = useState('');
+  const [newInclusive, setNewInclusive] = useState(true);
+  const [savingId, setSavingId] = useState<number | 'new' | null>(null);
+
+  const load = async () => {
+    try {
+      const r = await taxApi.list();
+      setRows(r.data);
+    } catch (e) {
+      onError(apiErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist one existing row (rate / mode / name). Country code is the key.
+  const saveRow = async (row: TaxSetting, patch: Partial<TaxSetting>) => {
+    const next = { ...row, ...patch };
+    setRows((prev) => prev.map((r) => (r.id === row.id ? next : r)));
+    setSavingId(row.id);
+    onError(null);
+    try {
+      const r = await taxApi.save({
+        countryCode: next.countryCode,
+        countryName: next.countryName,
+        rate: Number(next.rate) || 0,
+        inclusive: next.inclusive,
+      });
+      setRows((prev) => prev.map((x) => (x.id === r.data.id ? r.data : x)));
+    } catch (e) {
+      onError(apiErrorMessage(e));
+      load(); // revert optimistic change on failure
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const addCountry = async () => {
+    if (!newCode.trim() || !newName.trim()) {
+      onError('Enter a 2-letter country code and a name.');
+      return;
+    }
+    setSavingId('new');
+    onError(null);
+    try {
+      await taxApi.save({
+        countryCode: newCode.trim().toUpperCase(),
+        countryName: newName.trim(),
+        rate: Number(newRate) || 0,
+        inclusive: newInclusive,
+      });
+      setNewCode('');
+      setNewName('');
+      setNewRate('');
+      setNewInclusive(true);
+      await load();
+    } catch (e) {
+      onError(apiErrorMessage(e));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const remove = async (row: TaxSetting) => {
+    onError(null);
+    try {
+      await taxApi.remove(row.id);
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (e) {
+      onError(apiErrorMessage(e));
+    }
+  };
+
+  return (
+    <Card className="flex flex-col gap-space-sm">
+      <div className="flex flex-col">
+        <span className="font-headline-sm text-on-surface">Country tax / VAT settings</span>
+        <span className="t-label-sm text-on-surface-variant">
+          Set each country&apos;s rate and whether tax is included in prices or added on top.
+        </span>
+      </div>
+
+      {loading ? (
+        <Empty text="Loading tax settings…" icon="hourglass_empty" />
+      ) : (
+        <>
+          <div className="flex flex-col gap-space-2xs">
+            {rows.length === 0 ? (
+              <Empty text="No countries configured yet." icon="public" />
+            ) : (
+              rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex flex-wrap items-center gap-space-sm rt-card-inner"
+                >
+                  <div className="flex items-center gap-space-2xs min-w-0 flex-1">
+                    <span className="pill bg-secondary/15 text-secondary px-1.5">{row.countryCode}</span>
+                    <span className="font-body-md text-on-surface truncate">{row.countryName}</span>
+                  </div>
+
+                  <label className="flex items-center gap-1 t-label-sm text-on-surface-variant">
+                    Rate
+                    <input
+                      className="field-input w-16 px-2 text-right py-1"
+                      value={String(row.rate)}
+                      onChange={(e) =>
+                        setRows((prev) =>
+                          prev.map((r) =>
+                            r.id === row.id ? { ...r, rate: Number(e.target.value) || 0 } : r
+                          )
+                        )
+                      }
+                      onBlur={() => saveRow(row, { rate: row.rate })}
+                      inputMode="decimal"
+                    />
+                    <span>%</span>
+                  </label>
+
+                  <div className="flex items-center gap-space-2xs">
+                    <TaxModeChip
+                      active={row.inclusive}
+                      onClick={() => saveRow(row, { inclusive: true })}
+                      label="Included"
+                    />
+                    <TaxModeChip
+                      active={!row.inclusive}
+                      onClick={() => saveRow(row, { inclusive: false })}
+                      label="Added on top"
+                    />
+                  </div>
+
+                  <button
+                    className="pill bg-error-container/40 text-error px-space-sm py-1"
+                    onClick={() => remove(row)}
+                    disabled={savingId === row.id}
+                    title="Remove country"
+                  >
+                    <Icon name="delete" className="text-[14px]" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Add a new country */}
+          <div className="flex flex-wrap items-end gap-space-sm pt-space-sm border-t border-white/[0.08]">
+            <div className="flex flex-col">
+              <span className="t-label-sm text-on-surface-variant mb-space-2xs">Code</span>
+              <input
+                className="field-input w-16 px-2 py-1 uppercase"
+                placeholder="PH"
+                maxLength={2}
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col flex-1 min-w-[8rem]">
+              <span className="t-label-sm text-on-surface-variant mb-space-2xs">Country</span>
+              <input
+                className="field-input px-2 py-1"
+                placeholder="Philippines"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="t-label-sm text-on-surface-variant mb-space-2xs">Rate %</span>
+              <input
+                className="field-input w-16 px-2 py-1 text-right"
+                placeholder="12"
+                value={newRate}
+                onChange={(e) => setNewRate(e.target.value)}
+                inputMode="decimal"
+              />
+            </div>
+            <div className="flex items-center gap-space-2xs pb-1">
+              <TaxModeChip active={newInclusive} onClick={() => setNewInclusive(true)} label="Included" />
+              <TaxModeChip active={!newInclusive} onClick={() => setNewInclusive(false)} label="Added on top" />
+            </div>
+            <button
+              className="btn-primary px-space-md py-2"
+              onClick={addCountry}
+              disabled={savingId === 'new'}
+            >
+              <Icon name="add" className="text-[16px]" /> Add
+            </button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** Segmented chip for picking a country's tax mode in the admin table. */
+function TaxModeChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`t-label-sm rounded-full px-space-sm py-1 border transition-colors ${
+        active
+          ? 'bg-primary-container text-on-primary border-transparent'
+          : 'bg-surface-container text-on-surface-variant border-white/[0.08]'
+      }`}
+    >
+      {label}
+    </button>
   );
 }

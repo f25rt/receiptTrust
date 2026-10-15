@@ -22,6 +22,8 @@ import type {
   RegisterResponse,
   SearchResult,
   SplitType,
+  TaxSetting,
+  TaxSettingRequest,
   TokenResponse,
   UpdateProfileRequest,
   FriendRequest,
@@ -144,6 +146,12 @@ export const adminApi = {
     api.get<AdminUser[]>('/admin/users', { params: query ? { query } : {} }),
   moderate: (id: number, body: { locked?: boolean; flagged?: boolean }) =>
     api.post<AdminUser>(`/admin/users/${id}/moderate`, body),
+};
+
+export const taxApi = {
+  list: () => api.get<TaxSetting[]>('/tax-settings'),
+  save: (body: TaxSettingRequest) => api.post<TaxSetting>('/tax-settings', body),
+  remove: (id: number) => api.delete(`/tax-settings/${id}`),
 };
 
 export const notificationApi = {

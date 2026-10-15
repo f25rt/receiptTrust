@@ -74,6 +74,27 @@ export interface AdminMetrics {
   bottomTrust: AdminUser[];
 }
 
+/**
+ * Per-country VAT/tax setting, managed by admins. `rate` is a percent (e.g. 12).
+ * `inclusive` = tax is already baked into prices (not added to the total);
+ * when false, the tax is added on top at checkout.
+ */
+export interface TaxSetting {
+  id: number;
+  countryCode: string;
+  countryName: string;
+  rate: number;
+  inclusive: boolean;
+}
+
+/** Create/update payload for a country tax setting (upsert by countryCode). */
+export interface TaxSettingRequest {
+  countryCode: string;
+  countryName: string;
+  rate: number;
+  inclusive: boolean;
+}
+
 /** Editable profile fields sent to PUT /me/profile. */
 export interface UpdateProfileRequest {
   currency?: Currency;

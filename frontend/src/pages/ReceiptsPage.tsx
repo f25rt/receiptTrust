@@ -32,6 +32,10 @@ export default function ReceiptsPage() {
   const [serviceChargeAmt, setServiceChargeAmt] = useState('');
   const [vatOn, setVatOn] = useState(false);
   const [vatAmt, setVatAmt] = useState('');
+  // VAT mode: 'included' = tax already baked into item prices (not added to the
+  // total, as on PH/EU receipts); 'added' = tax charged on top (as in the US),
+  // which IS added to the total. Toggling this changes the grand total.
+  const [vatMode, setVatMode] = useState<'included' | 'added'>('included');
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +49,7 @@ export default function ReceiptsPage() {
     setServiceChargeAmt('');
     setVatOn(false);
     setVatAmt('');
+    setVatMode('included');
     setError(null);
     setErrorKind(null);
 
@@ -122,11 +127,14 @@ export default function ReceiptsPage() {
   );
 
   // Grand total = items + enabled optional charges.
-  // Total = items + service charge (a real add-on). VAT is NOT added: on
-  // VAT-inclusive receipts (the norm here) the item prices already include it,
-  // so the VAT line is informational ("of which") and adding it would double-count.
+  // Service charge is always a real add-on. VAT only adds to the total when
+  // its mode is 'added' (tax charged on top). In 'included' mode the item
+  // prices already contain the VAT, so adding it again would double-count.
+  const vatAdds = vatOn && vatMode === 'added';
   const grandTotal =
-    parsedTotal + (serviceChargeOn ? Number(serviceChargeAmt) || 0 : 0);
+    parsedTotal +
+    (serviceChargeOn ? Number(serviceChargeAmt) || 0 : 0) +
+    (vatAdds ? Number(vatAmt) || 0 : 0);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -317,11 +325,12 @@ export default function ReceiptsPage() {
                 />
                 <ChargeRow
                   label="VAT / Tax"
-                  hint="included"
                   on={vatOn}
                   amount={vatAmt}
                   onToggle={setVatOn}
                   onAmount={setVatAmt}
+                  mode={vatMode}
+                  onMode={setVatMode}
                 />
                 <div className="flex items-center justify-between pt-space-2xs border-t border-white/[0.08]">
                   <span className="font-label-md text-on-surface-variant uppercase tracking-wider">Total</span>
@@ -355,57 +364,105 @@ export default function ReceiptsPage() {
  * A toggleable optional charge (service charge / VAT). When off, the amount
  * input is disabled and the charge is excluded from the total. Not every store
  * applies these, so they can be turned off.
+ *
+ * When `mode`/`onMode` are provided (VAT), a second control lets the user say
+ * whether the tax is already included in prices or added on top — which decides
+ * whether the amount is added to the grand total.
  */
 function ChargeRow({
   label,
-  hint,
   on,
   amount,
   onToggle,
   onAmount,
+  mode,
+  onMode,
 }: {
   label: string;
-  hint?: string;
   on: boolean;
   amount: string;
   onToggle: (v: boolean) => void;
   onAmount: (v: string) => void;
+  mode?: 'included' | 'added';
+  onMode?: (v: 'included' | 'added') => void;
 }) {
+  const hasMode = mode !== undefined && onMode !== undefined;
   return (
-    <div className="flex items-center justify-between gap-space-sm">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={() => onToggle(!on)}
-        className="flex items-center gap-space-2xs"
-      >
-        <span
-          className={`relative inline-block shrink-0 w-9 h-5 rounded-full transition-colors ${
-            on ? 'bg-primary-container' : 'bg-surface-container-highest'
-          }`}
+    <div className="flex flex-col gap-space-2xs">
+      <div className="flex items-center justify-between gap-space-sm">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          onClick={() => onToggle(!on)}
+          className="flex items-center gap-space-2xs"
         >
           <span
-            className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-on-surface shadow-sm transition-[left] ${
-              on ? 'left-[18px]' : 'left-0.5'
+            className={`relative inline-block shrink-0 w-9 h-5 rounded-full transition-colors ${
+              on ? 'bg-primary-container' : 'bg-surface-container-highest'
             }`}
+          >
+            <span
+              className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-on-surface shadow-sm transition-[left] ${
+                on ? 'left-[18px]' : 'left-0.5'
+              }`}
+            />
+          </span>
+          <span className={`t-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+            {label}
+          </span>
+        </button>
+        <input
+          className="field-input w-24 px-2 text-right disabled:opacity-40"
+          value={on ? amount : ''}
+          onChange={(e) => onAmount(e.target.value)}
+          placeholder="0"
+          disabled={!on}
+          inputMode="decimal"
+        />
+      </div>
+
+      {/* VAT only: how the tax relates to the item prices (affects the total). */}
+      {hasMode && on && (
+        <div className="flex items-center gap-space-2xs pl-[2.75rem]">
+          <ModeChip
+            active={mode === 'included'}
+            onClick={() => onMode('included')}
+            label="Included in price"
           />
-        </span>
-        <span className={`t-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-          {label}
-          {hint && on && (
-            <span className="t-label-sm text-on-surface-variant"> ({hint})</span>
-          )}
-        </span>
-      </button>
-      <input
-        className="field-input w-24 px-2 text-right disabled:opacity-40"
-        value={on ? amount : ''}
-        onChange={(e) => onAmount(e.target.value)}
-        placeholder="0"
-        disabled={!on}
-        inputMode="decimal"
-      />
+          <ModeChip
+            active={mode === 'added'}
+            onClick={() => onMode('added')}
+            label="Added on top"
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Small segmented-control chip used to pick the VAT mode. */
+function ModeChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`t-label-sm rounded-full px-space-sm py-1 border transition-colors ${
+        active
+          ? 'bg-primary-container text-on-primary border-transparent'
+          : 'bg-surface-container text-on-surface-variant border-white/[0.08]'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
