@@ -23,12 +23,13 @@ public class JwtService {
         this.accessTtlMinutes = properties.getAccessTokenTtlMinutes();
     }
 
-    public String generateAccessToken(Long userId, String username) {
+    public String generateAccessToken(Long userId, String username, int sessionVersion) {
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(accessTtlMinutes * 60);
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("sv", sessionVersion)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(key)
@@ -42,11 +43,20 @@ public class JwtService {
      * @throws io.jsonwebtoken.JwtException if invalid or expired
      */
     public Long parseUserId(String token) {
-        Claims claims = Jwts.parser()
+        return Long.valueOf(parseClaims(token).getSubject());
+    }
+
+    /** The session version embedded in the token (0 if absent, for old tokens). */
+    public int parseSessionVersion(String token) {
+        Integer sv = parseClaims(token).get("sv", Integer.class);
+        return sv == null ? 0 : sv;
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return Long.valueOf(claims.getSubject());
     }
 }

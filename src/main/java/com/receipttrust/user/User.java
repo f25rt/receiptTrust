@@ -80,6 +80,14 @@ public class User extends BaseEntity {
     @Column(name = "last_active_at")
     private java.time.Instant lastActiveAt;
 
+    /**
+     * Bumped on each login to enforce single-device sessions: an access token
+     * carries the version it was issued with, and the filter rejects tokens whose
+     * version no longer matches (i.e. a newer login happened elsewhere).
+     */
+    @Column(name = "session_version", nullable = false)
+    private int sessionVersion = 0;
+
     protected User() {
     }
 
@@ -257,5 +265,14 @@ public class User extends BaseEntity {
 
     public void setLastActiveAt(java.time.Instant lastActiveAt) {
         this.lastActiveAt = lastActiveAt;
+    }
+
+    public int getSessionVersion() {
+        return sessionVersion;
+    }
+
+    /** Advances the session version, invalidating access tokens from older logins. */
+    public void bumpSessionVersion() {
+        this.sessionVersion++;
     }
 }

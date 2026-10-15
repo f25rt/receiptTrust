@@ -47,4 +47,10 @@ public class RefreshTokenService {
             repository.save(rt);
         });
     }
+
+    /** Revokes all of a user's active refresh tokens (new login = single device). */
+    @Transactional
+    public void revokeAllForUser(User user) {
+        repository.revokeAllForUser(user);
+    }
 }

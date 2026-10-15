@@ -59,8 +59,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiError> handleAuth(AuthenticationException ex, HttpServletRequest req) {
-        // Deliberately generic so we never reveal which credential was wrong.
-        return build(HttpStatus.UNAUTHORIZED, "Authentication failed", req);
+        // One message for both unknown username and wrong password, so we never
+        // reveal which was wrong, while still being clear to the user.
+        return build(HttpStatus.UNAUTHORIZED, "Username or password is incorrect", req);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

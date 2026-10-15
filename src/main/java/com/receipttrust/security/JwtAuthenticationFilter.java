@@ -43,10 +43,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(BEARER_PREFIX.length());
             try {
                 Long userId = jwtService.parseUserId(token);
+                int tokenSessionVersion = jwtService.parseSessionVersion(token);
                 Optional<User> user = userRepository.findById(userId);
                 if (user.isPresent() && user.get().isLocked()) {
                     // Locked accounts cannot authenticate -> downstream 401.
                     log.warn("Rejected request from locked account id {}", userId);
+                    SecurityContextHolder.clearContext();
+                } else if (user.isPresent() && tokenSessionVersion != user.get().getSessionVersion()) {
+                    // A newer login happened on another device -> this token is stale.
+                    log.warn("Rejected stale session token for user id {} (token sv {}, current sv {})",
+                            userId, tokenSessionVersion, user.get().getSessionVersion());
                     SecurityContextHolder.clearContext();
                 } else if (user.isPresent()) {
                     User u = user.get();

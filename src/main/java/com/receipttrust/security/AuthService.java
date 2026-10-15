@@ -161,7 +161,15 @@ public class AuthService {
     }
 
     private AuthDtos.TokenResponse issueTokens(User user) {
-        String access = jwtService.generateAccessToken(user.getId(), user.getUsername());
+        // Single-device sessions: bump the version so any access token from a
+        // previous login (another device) stops being accepted, and revoke old
+        // refresh tokens so they can't mint new access tokens either.
+        user.bumpSessionVersion();
+        userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user);
+
+        String access = jwtService.generateAccessToken(
+                user.getId(), user.getUsername(), user.getSessionVersion());
         RefreshToken refresh = refreshTokenService.issue(user);
         return new AuthDtos.TokenResponse(access, refresh.getToken());
     }
