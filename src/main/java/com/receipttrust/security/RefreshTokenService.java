@@ -53,4 +53,10 @@ public class RefreshTokenService {
     public void revokeAllForUser(User user) {
         repository.revokeAllForUser(user);
     }
+
+    /** The user that owns a refresh token, if it exists. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<User> ownerOf(String token) {
+        return repository.findByToken(token).map(RefreshToken::getUser);
+    }
 }

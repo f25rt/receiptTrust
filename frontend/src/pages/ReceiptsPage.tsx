@@ -243,36 +243,46 @@ export default function ReceiptsPage() {
               </span>
             )}
             {items.map((it, i) => (
-              <div key={i} className="flex items-end gap-space-2xs">
-                <div className="flex-1 min-w-0">
-                  <input
-                    className="field-input"
-                    value={it.name}
-                    onChange={(e) => updateItem(i, { name: e.target.value })}
-                    placeholder="Item name"
-                  />
+              <div
+                key={i}
+                className="flex flex-col gap-space-2xs rounded-lg bg-surface-container-high/30 p-space-2xs sm:flex-row sm:items-end sm:bg-transparent sm:p-0"
+              >
+                {/* Name takes the full width on mobile (its own row). */}
+                <input
+                  className="field-input flex-1 min-w-0"
+                  value={it.name}
+                  onChange={(e) => updateItem(i, { name: e.target.value })}
+                  placeholder="Item name"
+                />
+                <div className="flex items-end gap-space-2xs">
+                  <div className="flex flex-col flex-1 sm:flex-none">
+                    <label className="field-label mb-0 sm:hidden">Qty</label>
+                    <input
+                      className="field-input w-full sm:w-14 px-2 text-center"
+                      type="number"
+                      min={1}
+                      value={it.quantity}
+                      onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="flex flex-col flex-1 sm:flex-none">
+                    <label className="field-label mb-0 sm:hidden">Price</label>
+                    <input
+                      className="field-input w-full sm:w-24 px-2"
+                      value={it.unitPrice}
+                      onChange={(e) => updateItem(i, { unitPrice: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant shrink-0"
+                    onClick={() => removeItem(i)}
+                    aria-label="Remove item"
+                  >
+                    <Icon name="close" className="text-[16px]" />
+                  </button>
                 </div>
-                <input
-                  className="field-input w-14 px-2"
-                  type="number"
-                  min={1}
-                  value={it.quantity}
-                  onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
-                />
-                <input
-                  className="field-input w-20 px-2"
-                  value={it.unitPrice}
-                  onChange={(e) => updateItem(i, { unitPrice: e.target.value })}
-                  placeholder="0"
-                />
-                <button
-                  type="button"
-                  className="w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant shrink-0"
-                  onClick={() => removeItem(i)}
-                  aria-label="Remove"
-                >
-                  <Icon name="close" className="text-[16px]" />
-                </button>
               </div>
             ))}
             {(items.length > 0 || serviceCharge || tax) && (

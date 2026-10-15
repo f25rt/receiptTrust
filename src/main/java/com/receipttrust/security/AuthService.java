@@ -125,6 +125,12 @@ public class AuthService {
 
     @Transactional
     public void logout(String refreshToken) {
+        // Mark the owner as no longer active so they drop off the "online now"
+        // metric immediately, then revoke the refresh token.
+        refreshTokenService.ownerOf(refreshToken).ifPresent(user -> {
+            user.setLastActiveAt(null);
+            userRepository.save(user);
+        });
         refreshTokenService.revoke(refreshToken);
     }
 
