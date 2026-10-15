@@ -83,6 +83,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
                                 "/api/auth/google", "/api/auth/facebook")
                         .permitAll()
+                        // Country list is public so the registration form can show it.
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tax-settings/countries")
+                        .permitAll()
                         // SSE stream authenticates via a token query param (EventSource
                         // can't send an Authorization header), so it's permitted here
                         // and validated inside the controller.

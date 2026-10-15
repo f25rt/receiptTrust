@@ -13,7 +13,9 @@ public final class AuthDtos {
             @NotBlank String fullName,
             @NotBlank @Size(min = 3, max = 50) String username,
             @NotBlank @Email String email,
-            @NotBlank @Size(min = 8, max = 100) String password
+            @NotBlank @Size(min = 8, max = 100) String password,
+            // Optional ISO country code (e.g. "PH"); used to apply the right VAT.
+            String country
     ) {
     }
 

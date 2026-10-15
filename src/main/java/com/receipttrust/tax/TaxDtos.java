@@ -28,4 +28,23 @@ public final class TaxDtos {
             Boolean inclusive
     ) {
     }
+
+    /** Public, minimal country option for the registration dropdown. */
+    public record CountryOption(String countryCode, String countryName) {
+    }
+
+    /**
+     * The tax configuration that applies to the current user, resolved from
+     * their country. {@code enabled} reflects the user's own on/off preference;
+     * {@code configured} is false when the user's country has no tax setting.
+     */
+    public record MyTaxSetting(
+            String countryCode,
+            String countryName,
+            BigDecimal rate,
+            boolean inclusive,
+            boolean enabled,
+            boolean configured
+    ) {
+    }
 }

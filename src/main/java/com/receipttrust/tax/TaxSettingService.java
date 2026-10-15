@@ -36,6 +36,33 @@ public class TaxSettingService {
                 .toList();
     }
 
+    /** Public country options (code + name) for the registration dropdown. */
+    @Transactional(readOnly = true)
+    public List<TaxDtos.CountryOption> countryOptions() {
+        return repository.findAllByOrderByCountryNameAsc().stream()
+                .map(t -> new TaxDtos.CountryOption(t.getCountryCode(), t.getCountryName()))
+                .toList();
+    }
+
+    /**
+     * Resolves the tax setting that applies to the given user from their country.
+     * Returns a {@code configured=false} result when the country is unknown/unset
+     * so the client can simply fall back to no tax.
+     */
+    @Transactional(readOnly = true)
+    public TaxDtos.MyTaxSetting resolveForUser(User user) {
+        String code = user.getCountry() == null ? null : user.getCountry().trim().toUpperCase();
+        TaxSetting setting = code == null ? null
+                : repository.findByCountryCode(code).orElse(null);
+        if (setting == null) {
+            return new TaxDtos.MyTaxSetting(
+                    code, null, BigDecimal.ZERO, true, user.isTaxEnabled(), false);
+        }
+        return new TaxDtos.MyTaxSetting(
+                setting.getCountryCode(), setting.getCountryName(), setting.getRate(),
+                setting.isInclusive(), user.isTaxEnabled(), true);
+    }
+
     /** Creates a country or updates it when the code already exists (upsert by code). */
     @Transactional
     public TaxDtos.TaxSettingDto save(User admin, TaxDtos.TaxSettingRequest req) {

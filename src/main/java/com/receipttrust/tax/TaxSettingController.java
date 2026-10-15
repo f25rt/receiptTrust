@@ -36,6 +36,18 @@ public class TaxSettingController {
         return taxSettingService.list();
     }
 
+    /** Public: country options for the registration dropdown (no auth required). */
+    @GetMapping("/countries")
+    public List<TaxDtos.CountryOption> countries() {
+        return taxSettingService.countryOptions();
+    }
+
+    /** The tax setting that applies to the current user, resolved from their country. */
+    @GetMapping("/me")
+    public TaxDtos.MyTaxSetting mine() {
+        return taxSettingService.resolveForUser(currentUserService.require());
+    }
+
     @PostMapping
     public TaxDtos.TaxSettingDto save(@RequestBody TaxDtos.TaxSettingRequest request) {
         return taxSettingService.save(currentUserService.require(), request);

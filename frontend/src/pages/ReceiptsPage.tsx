@@ -1,9 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { receiptApi } from '../api/services';
+import { receiptApi, taxApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
-import type { ParsedItem } from '../api/types';
+import type { MyTaxSetting, ParsedItem } from '../api/types';
 import { Card, ErrorBanner, Icon } from '../components/ui';
 import { money } from '../lib/format';
 
@@ -17,6 +17,18 @@ interface DraftItem {
 const MAX_UPLOAD_MB = 5;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+
+/**
+ * Computes the VAT amount for a subtotal at a given percent rate.
+ * - 'added': tax charged on top, so VAT = subtotal × rate%.
+ * - 'included': tax already baked into the subtotal, so VAT is the portion of
+ *   it that is tax: subtotal − subtotal / (1 + rate%).
+ */
+function computeVat(subtotal: number, ratePercent: number, mode: 'included' | 'added') {
+  const r = ratePercent / 100;
+  if (r <= 0) return 0;
+  return mode === 'added' ? subtotal * r : subtotal - subtotal / (1 + r);
+}
 
 export default function ReceiptsPage() {
   const navigate = useNavigate();
@@ -41,6 +53,16 @@ export default function ReceiptsPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<'size' | 'type' | 'ocr' | null>(null);
   const [busy, setBusy] = useState(false);
+  // The VAT/tax setting for the user's country (rate + inclusive/added mode),
+  // used to default and pre-compute VAT when a scan doesn't detect it.
+  const [myTax, setMyTax] = useState<MyTaxSetting | null>(null);
+
+  useEffect(() => {
+    taxApi
+      .mine()
+      .then((r) => setMyTax(r.data))
+      .catch(() => setMyTax(null));
+  }, []);
 
   const onFile = async (file: File | null) => {
     setScanned(false);
@@ -80,20 +102,32 @@ export default function ReceiptsPage() {
       const { data } = await receiptApi.scan(file);
       if (data.storeName) setStoreName(data.storeName);
       if (data.invoiceNumber) setInvoiceNumber(data.invoiceNumber);
-      setItems(
-        (data.items ?? []).map((p: ParsedItem) => ({
-          name: p.name,
-          quantity: p.quantity,
-          unitPrice: p.unitPrice,
-        }))
-      );
+      const scannedItems = (data.items ?? []).map((p: ParsedItem) => ({
+        name: p.name,
+        quantity: p.quantity,
+        unitPrice: p.unitPrice,
+      }));
+      setItems(scannedItems);
       // Pre-fill and auto-enable charges only when the scan detected them.
       if (data.serviceCharge != null) {
         setServiceChargeAmt(String(data.serviceCharge));
         setServiceChargeOn(true);
       }
       if (data.tax != null) {
+        // The receipt itself stated a tax amount — trust it, and default the
+        // mode from the user's country (inclusive is the common case).
         setVatAmt(String(data.tax));
+        setVatOn(true);
+        if (myTax?.configured) setVatMode(myTax.inclusive ? 'included' : 'added');
+      } else if (myTax?.configured && myTax.enabled && myTax.rate > 0) {
+        // No tax on the receipt: apply the user's country VAT to the subtotal.
+        const subtotal = scannedItems.reduce(
+          (sum, it) => sum + (Number(it.unitPrice) || 0) * (it.quantity || 0),
+          0
+        );
+        const mode = myTax.inclusive ? 'included' : 'added';
+        setVatMode(mode);
+        setVatAmt(String(Math.round(computeVat(subtotal, myTax.rate, mode))));
         setVatOn(true);
       }
       setScanned(true);
@@ -330,12 +364,31 @@ export default function ReceiptsPage() {
                   onToggle={setVatOn}
                   onAmount={setVatAmt}
                   mode={vatMode}
-                  onMode={setVatMode}
+                  onMode={(m) => {
+                    setVatMode(m);
+                    // Recompute from the country rate so each mode shows the
+                    // right figure (on-top vs the embedded portion).
+                    if (myTax?.configured && myTax.rate > 0) {
+                      setVatAmt(String(Math.round(computeVat(parsedTotal, myTax.rate, m))));
+                    }
+                  }}
                 />
                 <div className="flex items-center justify-between pt-space-2xs border-t border-white/[0.08]">
-                  <span className="font-label-md text-on-surface-variant uppercase tracking-wider">Total</span>
+                  <span className="t-label-md text-on-surface-variant uppercase tracking-wider">Total</span>
                   <span className="font-headline-md text-on-surface">{money(grandTotal)}</span>
                 </div>
+                {vatOn && vatMode === 'included' && (
+                  <span className="t-label-sm text-on-surface-variant">
+                    Includes {money(Number(vatAmt) || 0)} VAT (already in the item prices — not added
+                    again).
+                  </span>
+                )}
+                {vatOn && vatMode === 'added' && (
+                  <span className="t-label-sm text-on-surface-variant">
+                    {money(Number(vatAmt) || 0)} VAT added on top. Turn VAT off to remove it from the
+                    total.
+                  </span>
+                )}
               </div>
             )}
           </div>

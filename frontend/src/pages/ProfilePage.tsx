@@ -1,12 +1,12 @@
-import { FormEvent, ReactNode, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { profileApi } from '../api/services';
+import { profileApi, taxApi } from '../api/services';
 import { apiErrorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useAvatarUrl } from '../auth/useAvatarUrl';
 import { Avatar, Card, ErrorBanner, Icon } from '../components/ui';
 import { trustTier, reputationLabel, nextTier, pointsToNextTier } from '../lib/format';
-import type { Currency } from '../api/types';
+import type { CountryOption, Currency } from '../api/types';
 
 const REPUTATION_MAX = 1000;
 
@@ -310,6 +310,15 @@ function PersonalDetailsCard() {
   const [gender, setGender] = useState(profile?.gender ?? '');
   const [country, setCountry] = useState(profile?.country ?? '');
   const [city, setCity] = useState(profile?.city ?? '');
+  const [taxEnabled, setTaxEnabled] = useState(profile?.taxEnabled ?? true);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+
+  useEffect(() => {
+    taxApi
+      .countries()
+      .then((r) => setCountries(r.data))
+      .catch(() => setCountries([]));
+  }, []);
 
   if (!profile) return null;
 
@@ -320,6 +329,7 @@ function PersonalDetailsCard() {
     setGender(profile.gender ?? '');
     setCountry(profile.country ?? '');
     setCity(profile.city ?? '');
+    setTaxEnabled(profile.taxEnabled ?? true);
     setError(null);
     setEditing(true);
   };
@@ -334,7 +344,7 @@ function PersonalDetailsCard() {
     setBusy(true);
     setError(null);
     try {
-      await profileApi.updateProfile({ currency, mobile, gender, country, city });
+      await profileApi.updateProfile({ currency, mobile, gender, country, city, taxEnabled });
       await refreshProfile();
       setEditing(false);
     } catch (err) {
@@ -369,8 +379,18 @@ function PersonalDetailsCard() {
           <DetailRow label="Currency" value={profile.currency === 'PHP' ? 'PHP (₱)' : 'USD ($)'} />
           <DetailRow label="Mobile" value={display(profile.mobile)} />
           <DetailRow label="Gender" value={display(profile.gender)} />
-          <DetailRow label="Country" value={display(profile.country)} />
+          <DetailRow
+            label="Country"
+            value={display(
+              countries.find((c) => c.countryCode === profile.country)?.countryName ??
+                profile.country
+            )}
+          />
           <DetailRow label="City / Address" value={display(profile.city)} />
+          <DetailRow
+            label="VAT / Tax"
+            value={profile.taxEnabled ? 'Applied to my receipts' : 'Off'}
+          />
         </div>
       ) : (
         <form className="flex flex-col gap-space-sm" onSubmit={save}>
@@ -400,12 +420,40 @@ function PersonalDetailsCard() {
             <input className="field-input" value={gender} onChange={(e) => setGender(e.target.value)} placeholder="e.g. Female / Male / Prefer not to say" />
           </div>
           <div>
-            <label className="field-label">Country</label>
-            <input className="field-input" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Philippines" />
+            <label className="field-label">Country (sets your VAT/tax)</label>
+            <select className="field-input" value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="">Select your country…</option>
+              {countries.map((c) => (
+                <option key={c.countryCode} value={c.countryCode}>
+                  {c.countryName}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="field-label">City / Address</label>
             <input className="field-input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Quezon City" />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="field-label mb-0">Apply VAT / tax</span>
+              <span className="t-label-sm text-outline">Use your country&apos;s tax on new receipts</span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={taxEnabled}
+              onClick={() => setTaxEnabled((v) => !v)}
+              className={`relative inline-block shrink-0 w-11 h-6 rounded-full transition-colors ${
+                taxEnabled ? 'bg-primary-container' : 'bg-surface-container-highest'
+              }`}
+            >
+              <span
+                className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-on-surface shadow-sm transition-[left] ${
+                  taxEnabled ? 'left-[22px]' : 'left-0.5'
+                }`}
+              />
+            </button>
           </div>
           <div className="flex gap-space-sm pt-space-2xs">
             <button type="button" className="btn-glass flex-1" onClick={cancel} disabled={busy}>

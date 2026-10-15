@@ -4,6 +4,8 @@ import type {
   AdminUser,
   AssignTarget,
   Assignment,
+  CountryOption,
+  MyTaxSetting,
   Dashboard,
   DebtComment,
   DebtExplanation,
@@ -31,8 +33,13 @@ import type {
 } from './types';
 
 export const authApi = {
-  register: (fullName: string, username: string, email: string, password: string) =>
-    api.post<RegisterResponse>('/auth/register', { fullName, username, email, password }),
+  register: (
+    fullName: string,
+    username: string,
+    email: string,
+    password: string,
+    country?: string
+  ) => api.post<RegisterResponse>('/auth/register', { fullName, username, email, password, country }),
   login: (username: string, password: string) =>
     api.post<TokenResponse>('/auth/login', { username, password }),
   google: (idToken: string) => api.post<TokenResponse>('/auth/google', { idToken }),
@@ -152,6 +159,8 @@ export const taxApi = {
   list: () => api.get<TaxSetting[]>('/tax-settings'),
   save: (body: TaxSettingRequest) => api.post<TaxSetting>('/tax-settings', body),
   remove: (id: number) => api.delete(`/tax-settings/${id}`),
+  countries: () => api.get<CountryOption[]>('/tax-settings/countries'),
+  mine: () => api.get<MyTaxSetting>('/tax-settings/me'),
 };
 
 export const notificationApi = {

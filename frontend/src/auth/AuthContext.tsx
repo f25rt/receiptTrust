@@ -9,7 +9,13 @@ interface AuthState {
   loading: boolean;
   login: (username: string, password: string) => Promise<MyProfile | null>;
   loginWithGoogle: (idToken: string) => Promise<MyProfile | null>;
-  register: (fullName: string, username: string, email: string, password: string) => Promise<void>;
+  register: (
+    fullName: string,
+    username: string,
+    email: string,
+    password: string,
+    country?: string
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<MyProfile | null>;
 }
@@ -70,9 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     username: string,
     email: string,
-    password: string
+    password: string,
+    country?: string
   ) => {
-    await authApi.register(fullName, username, email, password);
+    await authApi.register(fullName, username, email, password, country);
     await login(username, password);
   };
 

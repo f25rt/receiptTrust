@@ -27,7 +27,8 @@ public final class UserDtos {
             String country,
             String city,
             String role,
-            boolean flagged
+            boolean flagged,
+            boolean taxEnabled
     ) {
     }
 
@@ -37,7 +38,8 @@ public final class UserDtos {
             String mobile,
             String gender,
             String country,
-            String city
+            String city,
+            Boolean taxEnabled
     ) {
     }
 

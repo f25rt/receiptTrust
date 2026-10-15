@@ -35,6 +35,7 @@ export interface MyProfile {
   city: string | null;
   role: 'USER' | 'ADMIN';
   flagged: boolean;
+  taxEnabled: boolean;
 }
 
 export interface AdminMetricPoint {
@@ -102,6 +103,23 @@ export interface UpdateProfileRequest {
   gender?: string | null;
   country?: string | null;
   city?: string | null;
+  taxEnabled?: boolean;
+}
+
+/** A country option for the registration dropdown (public). */
+export interface CountryOption {
+  countryCode: string;
+  countryName: string;
+}
+
+/** The tax setting that applies to the current user, resolved from their country. */
+export interface MyTaxSetting {
+  countryCode: string | null;
+  countryName: string | null;
+  rate: number;
+  inclusive: boolean;
+  enabled: boolean;
+  configured: boolean;
 }
 
 export interface PublicProfile {

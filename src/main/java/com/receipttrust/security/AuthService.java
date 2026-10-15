@@ -49,6 +49,10 @@ public class AuthService {
                 request.email(),
                 passwordEncoder.encode(request.password()),
                 trustProperties.getInitialScore());
+        // Country drives which VAT/tax setting applies to the user's receipts.
+        if (request.country() != null && !request.country().isBlank()) {
+            user.setCountry(request.country().trim().toUpperCase());
+        }
         return userRepository.save(user);
     }
 

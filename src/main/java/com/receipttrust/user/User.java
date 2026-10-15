@@ -63,6 +63,13 @@ public class User extends BaseEntity {
     @Column(name = "city")
     private String city;
 
+    /**
+     * Whether the user's country VAT/tax applies to their receipts. Defaults to
+     * on; the user can turn it off from their profile or per receipt.
+     */
+    @Column(name = "tax_enabled", nullable = false)
+    private boolean taxEnabled = true;
+
     /** Access role: USER (default) or ADMIN. Admins can view the admin dashboard. */
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
@@ -229,6 +236,14 @@ public class User extends BaseEntity {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public boolean isTaxEnabled() {
+        return taxEnabled;
+    }
+
+    public void setTaxEnabled(boolean taxEnabled) {
+        this.taxEnabled = taxEnabled;
     }
 
     public Role getRole() {

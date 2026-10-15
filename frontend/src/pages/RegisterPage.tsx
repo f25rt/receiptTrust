@@ -1,7 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiErrorMessage } from '../api/client';
+import { taxApi } from '../api/services';
+import type { CountryOption } from '../api/types';
 import { ErrorBanner, Icon } from '../components/ui';
 import GoogleButton, { GoogleDivider } from '../auth/GoogleButton';
 
@@ -12,15 +14,25 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [country, setCountry] = useState('');
+  const [countries, setCountries] = useState<CountryOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Country list is public; it drives which VAT/tax applies to the new account.
+  useEffect(() => {
+    taxApi
+      .countries()
+      .then((r) => setCountries(r.data))
+      .catch(() => setCountries([]));
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await register(fullName, username, email, password);
+      await register(fullName, username, email, password, country || undefined);
       navigate('/');
     } catch (err) {
       setError(apiErrorMessage(err));
@@ -62,6 +74,21 @@ export default function RegisterPage() {
           <div>
             <label className="field-label">Email</label>
             <input className="field-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="field-label">Country (sets your VAT/tax)</label>
+            <select
+              className="field-input"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+            >
+              <option value="">Select your country…</option>
+              {countries.map((c) => (
+                <option key={c.countryCode} value={c.countryCode}>
+                  {c.countryName}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="field-label">Password (min 8 chars)</label>

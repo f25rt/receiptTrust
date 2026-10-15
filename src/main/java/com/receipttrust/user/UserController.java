@@ -49,7 +49,7 @@ public class UserController {
                 me.hasPassword(),
                 me.getCurrency(),
                 me.getMobile(), me.getGender(), me.getCountry(), me.getCity(),
-                me.getRole().name(), me.isFlagged());
+                me.getRole().name(), me.isFlagged(), me.isTaxEnabled());
     }
 
     /** Updates the owner's editable profile fields (currency + contact details). */
@@ -68,6 +68,9 @@ public class UserController {
         me.setGender(trimToNull(request.gender()));
         me.setCountry(trimToNull(request.country()));
         me.setCity(trimToNull(request.city()));
+        if (request.taxEnabled() != null) {
+            me.setTaxEnabled(request.taxEnabled());
+        }
         userRepository.save(me);
         return me();
     }
