@@ -18,11 +18,12 @@ public final class FriendDtos {
             String fullName,
             String username,
             int trustScore,
-            String mobile
+            String mobile,
+            boolean flagged
     ) {
         public static UserSummary from(User u) {
             return new UserSummary(u.getId(), u.getFullName(), u.getUsername(),
-                    u.getTrustScore(), u.getMobile());
+                    u.getTrustScore(), u.getMobile(), u.isFlagged());
         }
     }
 

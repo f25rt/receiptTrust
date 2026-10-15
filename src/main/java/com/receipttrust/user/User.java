@@ -63,6 +63,23 @@ public class User extends BaseEntity {
     @Column(name = "city")
     private String city;
 
+    /** Access role: USER (default) or ADMIN. Admins can view the admin dashboard. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private Role role = Role.USER;
+
+    /** When set, the account is disabled and cannot authenticate. */
+    @Column(name = "locked", nullable = false)
+    private boolean locked = false;
+
+    /** Soft moderation marker ("untrusted"); does not block sign-in. */
+    @Column(name = "flagged", nullable = false)
+    private boolean flagged = false;
+
+    /** Last time the user made an authenticated request (for active-user metrics). */
+    @Column(name = "last_active_at")
+    private java.time.Instant lastActiveAt;
+
     protected User() {
     }
 
@@ -204,5 +221,41 @@ public class User extends BaseEntity {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public Role getRole() {
+        return role == null ? Role.USER : role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public boolean isAdmin() {
+        return getRole() == Role.ADMIN;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
+    public boolean isFlagged() {
+        return flagged;
+    }
+
+    public void setFlagged(boolean flagged) {
+        this.flagged = flagged;
+    }
+
+    public java.time.Instant getLastActiveAt() {
+        return lastActiveAt;
+    }
+
+    public void setLastActiveAt(java.time.Instant lastActiveAt) {
+        this.lastActiveAt = lastActiveAt;
     }
 }

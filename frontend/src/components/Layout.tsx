@@ -6,7 +6,7 @@ import { trustTier } from '../lib/format';
 import { useRealtime } from '../lib/useRealtime';
 import { useIdleLogout } from '../lib/useIdleLogout';
 
-const NAV = [
+const USER_NAV = [
   { to: '/', icon: 'dashboard', label: 'Dashboard', end: true },
   { to: '/friends', icon: 'group', label: 'Friends & Peers' },
   { to: '/receipts', icon: 'receipt_long', label: 'Receipts & Splits' },
@@ -14,9 +14,17 @@ const NAV = [
   { to: '/profile', icon: 'person', label: 'Profile' },
 ];
 
+// Admins only get the admin dashboard and their account profile.
+const ADMIN_NAV = [
+  { to: '/admin', icon: 'shield_person', label: 'Admin', end: true },
+  { to: '/profile', icon: 'person', label: 'Profile' },
+];
+
 export default function Layout() {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = profile?.role === 'ADMIN';
+  const NAV = isAdmin ? ADMIN_NAV : USER_NAV;
   const tier = trustTier(profile?.trustScore ?? 500);
   const avatarUrl = useAvatarUrl();
 
@@ -35,7 +43,8 @@ export default function Layout() {
     void handleLogout();
   }, 5 * 60 * 1000, !!profile);
 
-  const trustPill = (
+  // Trust score is a user concept; admins don't have a meaningful one.
+  const trustPill = isAdmin ? null : (
     <button
       onClick={() => navigate('/profile')}
       className={`flex items-center gap-space-2xs ${tier.bg} px-space-sm py-space-2xs rounded-full`}
@@ -59,6 +68,15 @@ export default function Layout() {
             </span>
           </button>
           <div className="flex items-center gap-space-sm shrink-0">
+            {profile?.role === 'ADMIN' && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary active:scale-95 transition-transform"
+                aria-label="Admin"
+              >
+                <Icon name="shield_person" className="text-[18px]" />
+              </button>
+            )}
             {trustPill}
             <button onClick={() => navigate('/profile')} className="relative">
               <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={avatarUrl} />
@@ -99,13 +117,25 @@ export default function Layout() {
 
           <div className="flex items-center gap-space-sm shrink-0">
             {trustPill}
-            <button
-              onClick={() => navigate('/notifications')}
-              className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant active:scale-95 transition-transform relative"
-              aria-label="Activity"
-            >
-              <Icon name="notifications" className="text-[18px]" />
-            </button>
+            {profile?.role === 'ADMIN' && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-secondary active:scale-95 transition-transform"
+                aria-label="Admin"
+                title="Admin dashboard"
+              >
+                <Icon name="shield_person" className="text-[18px]" />
+              </button>
+            )}
+            {!isAdmin && (
+              <button
+                onClick={() => navigate('/notifications')}
+                className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant active:scale-95 transition-transform relative"
+                aria-label="Activity"
+              >
+                <Icon name="notifications" className="text-[18px]" />
+              </button>
+            )}
             <button onClick={() => navigate('/profile')} className="flex items-center gap-space-2xs">
               <Avatar name={profile?.fullName ?? '?'} size={32} imagePath={avatarUrl} />
             </button>
@@ -140,20 +170,29 @@ export default function Layout() {
       {/* ---- Glass bottom nav (below lg) ---- */}
       <nav className="lg:hidden fixed bottom-0 w-full z-50 pb-safe bg-surface-container-lowest/85 backdrop-blur-xl border-t border-white/[0.08] shadow-[0_-4px_20px_rgba(0,0,0,0.45)]">
         <div className="max-w-md mx-auto h-16 px-space-xs flex items-center justify-around relative">
-          <MobileNavItem to="/" icon="dashboard" label="Dashboard" end />
-          <MobileNavItem to="/friends" icon="group" label="Friends" />
-          <div className="relative -top-3 flex flex-col items-center justify-center">
-            <button
-              onClick={() => navigate('/receipts')}
-              aria-label="New receipt"
-              className="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center text-on-primary shadow-[0_0_20px_rgba(77,142,255,0.4)] active:scale-95 transition-transform"
-            >
-              <Icon name="photo_camera" className="text-[28px]" />
-            </button>
-            <span className="font-label-sm text-on-surface-variant mt-1">Scan</span>
-          </div>
-          <MobileNavItem to="/notifications" icon="notifications" label="Activity" />
-          <MobileNavItem to="/profile" icon="person" label="Profile" />
+          {isAdmin ? (
+            <>
+              <MobileNavItem to="/admin" icon="shield_person" label="Admin" end />
+              <MobileNavItem to="/profile" icon="person" label="Profile" />
+            </>
+          ) : (
+            <>
+              <MobileNavItem to="/" icon="dashboard" label="Dashboard" end />
+              <MobileNavItem to="/friends" icon="group" label="Friends" />
+              <div className="relative -top-3 flex flex-col items-center justify-center">
+                <button
+                  onClick={() => navigate('/receipts')}
+                  aria-label="New receipt"
+                  className="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center text-on-primary shadow-[0_0_20px_rgba(77,142,255,0.4)] active:scale-95 transition-transform"
+                >
+                  <Icon name="photo_camera" className="text-[28px]" />
+                </button>
+                <span className="font-label-sm text-on-surface-variant mt-1">Scan</span>
+              </div>
+              <MobileNavItem to="/notifications" icon="notifications" label="Activity" />
+              <MobileNavItem to="/profile" icon="person" label="Profile" />
+            </>
+          )}
         </div>
       </nav>
     </div>

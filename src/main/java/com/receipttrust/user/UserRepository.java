@@ -36,4 +36,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """)
     List<User> findProfileImageOlderThan(
             @org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff);
+
+    // ---- Admin metrics ----
+
+    long countByLastActiveAtAfter(java.time.Instant since);
+
+    long countByLocked(boolean locked);
+
+    long countByFlagged(boolean flagged);
+
+    long countByRole(Role role);
+
+    /** Top users by trust score (highest first) for the ranking view. */
+    List<User> findTop10ByOrderByTrustScoreDesc();
+
+    /** Bottom users by trust score (lowest first) for the ranking view. */
+    List<User> findTop10ByOrderByTrustScoreAsc();
 }

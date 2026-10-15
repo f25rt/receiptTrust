@@ -18,8 +18,8 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await login(username, password);
-      navigate('/');
+      const me = await login(username, password);
+      navigate(me?.role === 'ADMIN' ? '/admin' : '/');
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -30,8 +30,8 @@ export default function LoginPage() {
   const onGoogle = async (idToken: string) => {
     setError(null);
     try {
-      await loginWithGoogle(idToken);
-      navigate('/');
+      const me = await loginWithGoogle(idToken);
+      navigate(me?.role === 'ADMIN' ? '/admin' : '/');
     } catch (err) {
       setError(apiErrorMessage(err));
     }

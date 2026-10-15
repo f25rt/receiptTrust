@@ -24,11 +24,14 @@ public class OcrService {
     private final OcrProperties properties;
     private final OcrVocabularyService vocabulary;
     private final List<OcrEngine> engines;
+    private final OcrUsageService usageService;
 
-    public OcrService(OcrProperties properties, OcrVocabularyService vocabulary, List<OcrEngine> engines) {
+    public OcrService(OcrProperties properties, OcrVocabularyService vocabulary,
+                      List<OcrEngine> engines, OcrUsageService usageService) {
         this.properties = properties;
         this.vocabulary = vocabulary;
         this.engines = engines;
+        this.usageService = usageService;
     }
 
     public OcrDtos.ReceiptDraft scan(MultipartFile file) {
@@ -56,6 +59,15 @@ public class OcrService {
         }
 
         String text = engine.extractText(bytes);
+        // Count a scan against the monthly quota for cloud engines (Tesseract is
+        // local/unlimited, so it doesn't consume the paid/free-tier allowance).
+        if (!"tesseract".equals(engine.id())) {
+            try {
+                usageService.recordScan();
+            } catch (Exception e) {
+                log.warn("Failed to record OCR usage: {}", e.getMessage());
+            }
+        }
         log.info("OCR engine '{}' read {} chars", engine.id(), text == null ? 0 : text.length());
         if (text != null) {
             String snippet = text.replaceAll("\\s+", " ").strip();

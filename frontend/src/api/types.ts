@@ -33,6 +33,45 @@ export interface MyProfile {
   gender: string | null;
   country: string | null;
   city: string | null;
+  role: 'USER' | 'ADMIN';
+  flagged: boolean;
+}
+
+export interface AdminMetricPoint {
+  label: string;
+  value: number;
+}
+
+export interface AdminUser {
+  id: number;
+  fullName: string;
+  username: string;
+  email: string;
+  trustScore: number;
+  role: 'USER' | 'ADMIN';
+  locked: boolean;
+  flagged: boolean;
+  lastActiveAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminMetrics {
+  totalUsers: number;
+  admins: number;
+  lockedUsers: number;
+  flaggedUsers: number;
+  activeToday: number;
+  activeThisMonth: number;
+  onlineNow: number;
+  totalReceipts: number;
+  totalDebts: number;
+  totalPayments: number;
+  ocrScansThisMonth: number;
+  ocrMonthlyLimit: number;
+  registrationsByDay: AdminMetricPoint[];
+  ocrUsageByMonth: AdminMetricPoint[];
+  topTrust: AdminUser[];
+  bottomTrust: AdminUser[];
 }
 
 /** Editable profile fields sent to PUT /me/profile. */
@@ -57,6 +96,7 @@ export interface SearchResult {
   id: number;
   fullName: string;
   username: string;
+  flagged: boolean;
 }
 
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -67,6 +107,7 @@ export interface UserSummary {
   username: string;
   trustScore: number;
   mobile: string | null;
+  flagged: boolean;
 }
 
 export interface FriendRequest {
@@ -237,7 +278,9 @@ export type NotificationType =
   | 'ASSIGNMENT_CONFIRM_REQUEST'
   | 'ASSIGNMENT_CONFIRMED'
   | 'ASSIGNMENT_DECLINED'
-  | 'DIRECT_MESSAGE';
+  | 'DIRECT_MESSAGE'
+  | 'ACCOUNT_FLAGGED'
+  | 'ACCOUNT_LOCKED';
 
 export interface Notification {
   id: number;

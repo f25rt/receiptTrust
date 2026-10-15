@@ -20,6 +20,8 @@ const META: Record<NotificationType, { icon: string; color: string }> = {
   ASSIGNMENT_CONFIRMED: { icon: 'how_to_reg', color: 'text-tertiary' },
   ASSIGNMENT_DECLINED: { icon: 'person_off', color: 'text-error' },
   DIRECT_MESSAGE: { icon: 'chat', color: 'text-secondary' },
+  ACCOUNT_FLAGGED: { icon: 'flag', color: 'text-tertiary' },
+  ACCOUNT_LOCKED: { icon: 'lock', color: 'text-error' },
 };
 
 export default function NotificationsPage() {

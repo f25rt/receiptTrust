@@ -66,6 +66,10 @@ public class AuthService {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ApiExceptions.AuthenticationFailure();
         }
+        if (user.isLocked()) {
+            throw new ApiExceptions.ForbiddenException(
+                    "This account has been locked. Please contact support.");
+        }
         return issueTokens(user);
     }
 

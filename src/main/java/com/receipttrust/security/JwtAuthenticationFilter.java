@@ -44,14 +44,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtService.parseUserId(token);
                 Optional<User> user = userRepository.findById(userId);
-                if (user.isPresent()) {
+                if (user.isPresent() && user.get().isLocked()) {
+                    // Locked accounts cannot authenticate -> downstream 401.
+                    log.warn("Rejected request from locked account id {}", userId);
+                    SecurityContextHolder.clearContext();
+                } else if (user.isPresent()) {
+                    User u = user.get();
                     AuthenticatedUser principal =
-                            new AuthenticatedUser(user.get().getId(), user.get().getUsername());
+                            new AuthenticatedUser(u.getId(), u.getUsername());
                     var authentication = new UsernamePasswordAuthenticationToken(
                             principal, null, principal.getAuthorities());
                     authentication.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    touchLastActive(u);
                 } else {
                     // Token is valid but names a user id that no longer exists (e.g. the
                     // database was switched/reset). This is a common cause of "401 right
@@ -66,5 +72,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    /** Throttled update of last-active timestamp (at most once per ~2 minutes). */
+    private void touchLastActive(User user) {
+        try {
+            java.time.Instant now = java.time.Instant.now();
+            java.time.Instant last = user.getLastActiveAt();
+            if (last == null || last.isBefore(now.minusSeconds(120))) {
+                user.setLastActiveAt(now);
+                userRepository.save(user);
+            }
+        } catch (Exception e) {
+            // Non-fatal: never block a request because activity tracking failed.
+            log.debug("last-active update skipped: {}", e.getMessage());
+        }
     }
 }

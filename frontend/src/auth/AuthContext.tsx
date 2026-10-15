@@ -7,11 +7,11 @@ import { setDisplayCurrency } from '../lib/format';
 interface AuthState {
   profile: MyProfile | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<MyProfile | null>;
+  loginWithGoogle: (idToken: string) => Promise<MyProfile | null>;
   register: (fullName: string, username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<MyProfile | null>;
 }
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
@@ -20,18 +20,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = async () => {
+  const loadProfile = async (): Promise<MyProfile | null> => {
     if (!tokenStore.access) {
       setProfile(null);
       setDisplayCurrency('USD');
-      return;
+      return null;
     }
     try {
       const resp = await profileApi.me();
       setProfile(resp.data);
       setDisplayCurrency(resp.data.currency);
+      return resp.data;
     } catch {
       setProfile(null);
+      return null;
     }
   };
 
@@ -55,13 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     const resp = await authApi.login(username, password);
     tokenStore.set(resp.data.accessToken, resp.data.refreshToken);
-    await loadProfile();
+    return loadProfile();
   };
 
   const loginWithGoogle = async (idToken: string) => {
     const resp = await authApi.google(idToken);
     tokenStore.set(resp.data.accessToken, resp.data.refreshToken);
-    await loadProfile();
+    return loadProfile();
   };
 
   const register = async (

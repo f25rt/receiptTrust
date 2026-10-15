@@ -46,6 +46,11 @@ export default function ProfilePage() {
 
   if (!profile) return null;
 
+  // Admins get a stripped-down account page: name, email, and password only.
+  if (profile.role === 'ADMIN') {
+    return <AdminProfilePage />;
+  }
+
   const tier = trustTier(profile.trustScore);
   const next = nextTier(profile.trustScore);
   const toNext = pointsToNextTier(profile.trustScore);
@@ -189,6 +194,107 @@ function Metric({ icon, label, value }: { icon: string; label: string; value: nu
       <Icon name={icon} className="text-secondary text-[22px]" />
       <span className="font-headline-md text-on-surface">{value}</span>
       <span className="font-label-sm text-on-surface-variant">{label}</span>
+    </div>
+  );
+}
+
+/** Simplified profile for admins: edit name & email, change password, log out. */
+function AdminProfilePage() {
+  const { profile, refreshProfile, logout } = useAuth();
+  const navigate = useNavigate();
+  const avatarUrl = useAvatarUrl();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fullName, setFullName] = useState(profile?.fullName ?? '');
+  const [email, setEmail] = useState(profile?.email ?? '');
+
+  if (!profile) return null;
+
+  const startEdit = () => {
+    setFullName(profile.fullName);
+    setEmail(profile.email);
+    setError(null);
+    setEditing(true);
+  };
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await profileApi.updateAccount({ fullName, email });
+      await refreshProfile();
+      setEditing(false);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  return (
+    <div className="flex flex-col w-full px-margin lg:px-0 lg:max-w-2xl lg:mx-auto pb-space-xl gap-space-lg">
+      <div className="flex items-center gap-space-sm pt-space-md">
+        <Avatar name={profile.fullName} size={64} imagePath={avatarUrl} />
+        <div className="flex flex-col">
+          <h1 className="font-headline-lg text-on-surface flex items-center gap-space-2xs">
+            {profile.fullName}
+            <span className="pill bg-secondary/15 text-secondary text-[11px] px-space-sm py-0">Admin</span>
+          </h1>
+          <span className="font-body-sm text-on-surface-variant">@{profile.username} · {profile.email}</span>
+        </div>
+      </div>
+
+      <ErrorBanner message={error} />
+
+      {/* Account details (name + email) */}
+      <Card className="flex flex-col gap-space-sm">
+        <div className="flex items-center justify-between">
+          <span className="font-headline-sm text-on-surface">Account</span>
+          {!editing && (
+            <button type="button" className="font-label-md text-primary flex items-center gap-space-2xs" onClick={startEdit}>
+              <Icon name="edit" className="text-[16px]" /> Edit
+            </button>
+          )}
+        </div>
+        {!editing ? (
+          <div className="flex flex-col gap-space-xs">
+            <DetailRow label="Name" value={profile.fullName} />
+            <DetailRow label="Email" value={profile.email} />
+            <DetailRow label="Username" value={`@${profile.username}`} />
+          </div>
+        ) : (
+          <form className="flex flex-col gap-space-sm" onSubmit={save}>
+            <div>
+              <label className="field-label">Name</label>
+              <input className="field-input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+            </div>
+            <div>
+              <label className="field-label">Email</label>
+              <input className="field-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="flex gap-space-sm pt-space-2xs">
+              <button type="button" className="btn-glass flex-1" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+              <button className="btn-primary flex-1" disabled={busy}>
+                <Icon name="save" className="text-[16px]" /> {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Card>
+
+      {/* Password */}
+      <SetPasswordCard />
+
+      <button className="btn-destructive w-full py-3" onClick={handleLogout}>
+        <Icon name="logout" className="text-[18px]" /> Log out
+      </button>
     </div>
   );
 }

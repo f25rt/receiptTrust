@@ -25,7 +25,9 @@ public final class UserDtos {
             String mobile,
             String gender,
             String country,
-            String city
+            String city,
+            String role,
+            boolean flagged
     ) {
     }
 
@@ -36,6 +38,13 @@ public final class UserDtos {
             String gender,
             String country,
             String city
+    ) {
+    }
+
+    /** Core account fields any user can change: display name and email. */
+    public record UpdateAccountRequest(
+            String fullName,
+            String email
     ) {
     }
 
@@ -53,10 +62,11 @@ public final class UserDtos {
     public record SearchResult(
             Long id,
             String fullName,
-            String username
+            String username,
+            boolean flagged
     ) {
         public static SearchResult from(User u) {
-            return new SearchResult(u.getId(), u.getFullName(), u.getUsername());
+            return new SearchResult(u.getId(), u.getFullName(), u.getUsername(), u.isFlagged());
         }
     }
 }

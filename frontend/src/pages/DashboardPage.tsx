@@ -80,6 +80,19 @@ export default function DashboardPage() {
 
       <ErrorBanner message={error} />
 
+      {profile?.flagged && (
+        <div className="flex items-start gap-space-xs bg-tertiary/15 border border-tertiary/40 text-tertiary rounded-lg px-space-md py-space-sm">
+          <Icon name="flag" className="text-[18px] shrink-0 mt-0.5" />
+          <div className="flex flex-col">
+            <span className="font-label-md">Your account has been flagged</span>
+            <span className="font-body-sm text-on-surface-variant">
+              An administrator flagged this account as needing review. Other users may see this flag.
+              Keep settling debts on time to stay in good standing.
+            </span>
+          </div>
+        </div>
+      )}
+
       {data && (
         <div className="flex flex-col gap-space-lg lg:grid lg:grid-cols-3 lg:gap-space-lg lg:items-start">
           {/* Left/main column */}

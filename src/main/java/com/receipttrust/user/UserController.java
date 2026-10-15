@@ -48,7 +48,8 @@ public class UserController {
                 me.getProvider(),
                 me.hasPassword(),
                 me.getCurrency(),
-                me.getMobile(), me.getGender(), me.getCountry(), me.getCity());
+                me.getMobile(), me.getGender(), me.getCountry(), me.getCity(),
+                me.getRole().name(), me.isFlagged());
     }
 
     /** Updates the owner's editable profile fields (currency + contact details). */
@@ -67,6 +68,32 @@ public class UserController {
         me.setGender(trimToNull(request.gender()));
         me.setCountry(trimToNull(request.country()));
         me.setCity(trimToNull(request.city()));
+        userRepository.save(me);
+        return me();
+    }
+
+    /** Updates the owner's display name and/or email (email must stay unique). */
+    @org.springframework.web.bind.annotation.PutMapping("/api/me/account")
+    public UserDtos.MyProfileResponse updateAccount(
+            @org.springframework.web.bind.annotation.RequestBody UserDtos.UpdateAccountRequest request) {
+        User me = currentUserService.require();
+        if (request.fullName() != null) {
+            String name = request.fullName().strip();
+            if (name.isEmpty()) {
+                throw new ApiExceptions.ValidationException("Name cannot be empty");
+            }
+            me.setFullName(name);
+        }
+        if (request.email() != null) {
+            String email = request.email().strip().toLowerCase();
+            if (email.isEmpty()) {
+                throw new ApiExceptions.ValidationException("Email cannot be empty");
+            }
+            if (!email.equalsIgnoreCase(me.getEmail()) && userRepository.existsByEmail(email)) {
+                throw new ApiExceptions.ConflictException("Email already in use");
+            }
+            me.setEmail(email);
+        }
         userRepository.save(me);
         return me();
     }

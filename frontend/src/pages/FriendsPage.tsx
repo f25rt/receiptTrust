@@ -166,12 +166,29 @@ export default function FriendsPage() {
             Search results
           </span>
           {results.map((u) => (
-            <div key={u.id} className="flex items-center justify-between gap-space-sm">
+            <div
+              key={u.id}
+              className={`flex items-center justify-between gap-space-sm ${
+                u.flagged ? 'rounded-lg border border-tertiary/40 bg-tertiary/[0.06] p-space-sm' : ''
+              }`}
+            >
               <div className="flex items-center gap-space-sm min-w-0">
                 <Avatar name={u.fullName} size={40} />
                 <div className="flex flex-col min-w-0">
-                  <span className="font-headline-sm text-on-surface truncate">{u.fullName}</span>
+                  <span className="font-headline-sm text-on-surface truncate flex items-center gap-space-2xs">
+                    {u.fullName}
+                    {u.flagged && (
+                      <span className="pill bg-tertiary/20 text-tertiary text-[10px] px-1.5 py-0">
+                        <Icon name="flag" className="text-[10px]" /> Flagged
+                      </span>
+                    )}
+                  </span>
                   <span className="font-body-sm text-on-surface-variant truncate">@{u.username}</span>
+                  {u.flagged && (
+                    <span className="font-label-sm text-tertiary">
+                      This account was flagged by an admin — add with caution.
+                    </span>
+                  )}
                 </div>
               </div>
               <button className="btn-glass" onClick={() => act(() => friendApi.send(u.username))}>
@@ -254,6 +271,11 @@ export default function FriendsPage() {
                     <div className="flex flex-col min-w-0">
                       <div className="flex items-center gap-space-2xs">
                         <span className="font-headline-sm text-on-surface truncate">{f.fullName}</span>
+                        {f.flagged && (
+                          <span className="pill bg-tertiary/20 text-tertiary text-[10px] px-1.5 py-0">
+                            <Icon name="flag" className="text-[10px]" /> Flagged
+                          </span>
+                        )}
                       </div>
                       <span className="font-body-sm text-on-surface-variant truncate">@{f.username}</span>
                       {f.mobile && (

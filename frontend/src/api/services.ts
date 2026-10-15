@@ -1,5 +1,7 @@
 import { api, API_BASE } from './client';
 import type {
+  AdminMetrics,
+  AdminUser,
   AssignTarget,
   Assignment,
   Dashboard,
@@ -47,6 +49,8 @@ export const profileApi = {
   },
   setPassword: (password: string) => api.post<MyProfile>('/me/password', { password }),
   updateProfile: (body: UpdateProfileRequest) => api.put<MyProfile>('/me/profile', body),
+  updateAccount: (body: { fullName?: string; email?: string }) =>
+    api.put<MyProfile>('/me/account', body),
 };
 
 export const friendApi = {
@@ -132,6 +136,14 @@ export const messageApi = {
     api.post<DirectMessage>(`/messages/${username}`, { body }),
   unreadCount: () => api.get<{ count: number }>('/messages/unread-count'),
   unreadBySender: () => api.get<Record<string, number>>('/messages/unread-by-sender'),
+};
+
+export const adminApi = {
+  metrics: () => api.get<AdminMetrics>('/admin/metrics'),
+  users: (query?: string) =>
+    api.get<AdminUser[]>('/admin/users', { params: query ? { query } : {} }),
+  moderate: (id: number, body: { locked?: boolean; flagged?: boolean }) =>
+    api.post<AdminUser>(`/admin/users/${id}/moderate`, body),
 };
 
 export const notificationApi = {
