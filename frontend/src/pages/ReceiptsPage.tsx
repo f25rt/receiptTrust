@@ -381,20 +381,20 @@ function ChargeRow({
         className="flex items-center gap-space-2xs"
       >
         <span
-          className={`relative w-9 h-5 rounded-full transition-colors ${
+          className={`relative inline-block shrink-0 w-9 h-5 rounded-full transition-colors ${
             on ? 'bg-primary-container' : 'bg-surface-container-highest'
           }`}
         >
           <span
-            className={`absolute top-0.5 w-4 h-4 rounded-full bg-on-surface transition-transform ${
-              on ? 'translate-x-4' : 'translate-x-0.5'
+            className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-on-surface shadow-sm transition-[left] ${
+              on ? 'left-[18px]' : 'left-0.5'
             }`}
           />
         </span>
-        <span className={`font-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+        <span className={`t-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
           {label}
           {hint && on && (
-            <span className="font-label-sm text-on-surface-variant"> ({hint})</span>
+            <span className="t-label-sm text-on-surface-variant"> ({hint})</span>
           )}
         </span>
       </button>
