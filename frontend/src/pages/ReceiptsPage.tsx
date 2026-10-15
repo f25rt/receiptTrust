@@ -122,10 +122,11 @@ export default function ReceiptsPage() {
   );
 
   // Grand total = items + enabled optional charges.
+  // Total = items + service charge (a real add-on). VAT is NOT added: on
+  // VAT-inclusive receipts (the norm here) the item prices already include it,
+  // so the VAT line is informational ("of which") and adding it would double-count.
   const grandTotal =
-    parsedTotal +
-    (serviceChargeOn ? Number(serviceChargeAmt) || 0 : 0) +
-    (vatOn ? Number(vatAmt) || 0 : 0);
+    parsedTotal + (serviceChargeOn ? Number(serviceChargeAmt) || 0 : 0);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -316,6 +317,7 @@ export default function ReceiptsPage() {
                 />
                 <ChargeRow
                   label="VAT / Tax"
+                  hint="included"
                   on={vatOn}
                   amount={vatAmt}
                   onToggle={setVatOn}
@@ -356,12 +358,14 @@ export default function ReceiptsPage() {
  */
 function ChargeRow({
   label,
+  hint,
   on,
   amount,
   onToggle,
   onAmount,
 }: {
   label: string;
+  hint?: string;
   on: boolean;
   amount: string;
   onToggle: (v: boolean) => void;
@@ -389,6 +393,9 @@ function ChargeRow({
         </span>
         <span className={`font-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
           {label}
+          {hint && on && (
+            <span className="font-label-sm text-on-surface-variant"> ({hint})</span>
+          )}
         </span>
       </button>
       <input
