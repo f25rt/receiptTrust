@@ -212,6 +212,8 @@ class ReceiptTextParserTest {
         assertThat(draft.serviceCharge()).isEqualByComparingTo("102.65");
         // Mangled "2:155,65" is normalized to 2155.65.
         assertThat(draft.total()).isEqualByComparingTo("2155.65");
+        // VAT = 12% derived from the VAT-inclusive subtotal (2,053 -> 219.96).
+        assertThat(draft.tax()).isEqualByComparingTo("219.96");
 
         // Exactly the 6 real menu items — no address, no "DRD", no CREDIT.
         assertThat(draft.items()).hasSize(6);

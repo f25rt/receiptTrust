@@ -26,8 +26,12 @@ export default function ReceiptsPage() {
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [items, setItems] = useState<DraftItem[]>([]);
-  const [serviceCharge, setServiceCharge] = useState<string | null>(null);
-  const [tax, setTax] = useState<string | null>(null);
+  // Service charge and VAT are optional per store: each has an on/off toggle and
+  // an editable amount. The scan pre-fills and enables them when detected.
+  const [serviceChargeOn, setServiceChargeOn] = useState(false);
+  const [serviceChargeAmt, setServiceChargeAmt] = useState('');
+  const [vatOn, setVatOn] = useState(false);
+  const [vatAmt, setVatAmt] = useState('');
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +41,10 @@ export default function ReceiptsPage() {
   const onFile = async (file: File | null) => {
     setScanned(false);
     setItems([]);
-    setServiceCharge(null);
-    setTax(null);
+    setServiceChargeOn(false);
+    setServiceChargeAmt('');
+    setVatOn(false);
+    setVatAmt('');
     setError(null);
     setErrorKind(null);
 
@@ -76,8 +82,15 @@ export default function ReceiptsPage() {
           unitPrice: p.unitPrice,
         }))
       );
-      setServiceCharge(data.serviceCharge);
-      setTax(data.tax);
+      // Pre-fill and auto-enable charges only when the scan detected them.
+      if (data.serviceCharge != null) {
+        setServiceChargeAmt(String(data.serviceCharge));
+        setServiceChargeOn(true);
+      }
+      if (data.tax != null) {
+        setVatAmt(String(data.tax));
+        setVatOn(true);
+      }
       setScanned(true);
     } catch (err) {
       // Distinguish "file too large" (413) from a generic OCR miss.
@@ -107,6 +120,12 @@ export default function ReceiptsPage() {
     (sum, it) => sum + (Number(it.unitPrice) || 0) * (it.quantity || 0),
     0
   );
+
+  // Grand total = items + enabled optional charges.
+  const grandTotal =
+    parsedTotal +
+    (serviceChargeOn ? Number(serviceChargeAmt) || 0 : 0) +
+    (vatOn ? Number(vatAmt) || 0 : 0);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -285,22 +304,27 @@ export default function ReceiptsPage() {
                 </div>
               </div>
             ))}
-            {(items.length > 0 || serviceCharge || tax) && (
-              <div className="flex items-center justify-between bg-surface-container-high/60 rounded-lg px-space-md py-space-sm">
-                <div className="flex flex-col gap-space-2xs">
-                  {serviceCharge && (
-                    <span className="font-label-sm text-on-surface-variant">
-                      Service charge {money(serviceCharge)}
-                    </span>
-                  )}
-                  {tax && (
-                    <span className="font-label-sm text-on-surface-variant">
-                      Tax / VAT {money(tax)}
-                    </span>
-                  )}
-                  <span className="font-label-md text-on-surface-variant uppercase tracking-wider">Items total</span>
+            {items.length > 0 && (
+              <div className="flex flex-col gap-space-sm bg-surface-container-high/60 rounded-lg px-space-md py-space-sm">
+                {/* Optional charges: toggle on/off per store, editable amount. */}
+                <ChargeRow
+                  label="Service charge"
+                  on={serviceChargeOn}
+                  amount={serviceChargeAmt}
+                  onToggle={setServiceChargeOn}
+                  onAmount={setServiceChargeAmt}
+                />
+                <ChargeRow
+                  label="VAT / Tax"
+                  on={vatOn}
+                  amount={vatAmt}
+                  onToggle={setVatOn}
+                  onAmount={setVatAmt}
+                />
+                <div className="flex items-center justify-between pt-space-2xs border-t border-white/[0.08]">
+                  <span className="font-label-md text-on-surface-variant uppercase tracking-wider">Total</span>
+                  <span className="font-headline-md text-on-surface">{money(grandTotal)}</span>
                 </div>
-                <span className="font-headline-md text-on-surface">{money(parsedTotal)}</span>
               </div>
             )}
           </div>
@@ -321,6 +345,60 @@ export default function ReceiptsPage() {
         <Icon name="lock" className="text-[16px]" />
         <span className="font-label-sm">The image is read to auto-fill items — your debt is backed by the itemized list</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A toggleable optional charge (service charge / VAT). When off, the amount
+ * input is disabled and the charge is excluded from the total. Not every store
+ * applies these, so they can be turned off.
+ */
+function ChargeRow({
+  label,
+  on,
+  amount,
+  onToggle,
+  onAmount,
+}: {
+  label: string;
+  on: boolean;
+  amount: string;
+  onToggle: (v: boolean) => void;
+  onAmount: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-space-sm">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={() => onToggle(!on)}
+        className="flex items-center gap-space-2xs"
+      >
+        <span
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            on ? 'bg-primary-container' : 'bg-surface-container-highest'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-4 h-4 rounded-full bg-on-surface transition-transform ${
+              on ? 'translate-x-4' : 'translate-x-0.5'
+            }`}
+          />
+        </span>
+        <span className={`font-label-md ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+          {label}
+        </span>
+      </button>
+      <input
+        className="field-input w-24 px-2 text-right disabled:opacity-40"
+        value={on ? amount : ''}
+        onChange={(e) => onAmount(e.target.value)}
+        placeholder="0"
+        disabled={!on}
+        inputMode="decimal"
+      />
     </div>
   );
 }

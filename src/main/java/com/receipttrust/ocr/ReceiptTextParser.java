@@ -55,7 +55,17 @@ public final class ReceiptTextParser {
 
     private static final List<String> TOTAL_KEYS = List.of("total", "amount due", "balance due", "grand total");
     private static final List<String> SERVICE_KEYS = List.of("service charge", "service", "svc charge", "gratuity", "tip");
-    private static final List<String> TAX_KEYS = List.of("vat", "tax", "gst", "sales tax");
+    // Explicit VAT/tax AMOUNT lines. "vat sales"/"vatable" are handled separately
+    // as the base, so they must not be matched here.
+    private static final List<String> TAX_KEYS = List.of("vat amount", "vat (12", "12% vat", "gst", "sales tax", "tax");
+    // The net base that VAT is charged on.
+    private static final List<String> VATABLE_KEYS = List.of("vatable", "vat-able", "vat able", "vat sales", "vatable sales");
+    private static final List<String> SUBTOTAL_KEYS = List.of("subtotal", "sub total", "sub-total");
+    /** Philippine VAT rate (12%), used to compute VAT from the VATable base. */
+    private static final BigDecimal VAT_RATE = new BigDecimal("0.12");
+    private static final BigDecimal VAT_DIVISOR = new BigDecimal("1.12");
+    // Signals a VAT receipt (so we only derive 12% VAT when VAT is actually declared).
+    private static final Pattern VAT_MARKER = Pattern.compile("\\b(vat|tin)\\b", Pattern.CASE_INSENSITIVE);
     private static final List<String> SKIP_KEYS = List.of(
             "subtotal", "sub total", "tax", "vat", "change", "cash", "card", "visa",
             "mastercard", "balance", "tender", "amount tendered", "auth", "approval",
@@ -115,7 +125,9 @@ public final class ReceiptTextParser {
         String storeName = detectStoreName(lines);
         String invoiceNumber = detectInvoiceNumber(lines);
         BigDecimal serviceCharge = null;
-        BigDecimal tax = null;
+        BigDecimal tax = null;            // explicit VAT/tax amount line, if printed
+        BigDecimal vatableSales = null;   // "VATable / VAT Sales" base, if printed
+        BigDecimal subtotal = null;
         BigDecimal total = null;
         List<OcrDtos.ParsedItem> items = new ArrayList<>();
 
@@ -147,10 +159,25 @@ public final class ReceiptTextParser {
                 serviceCharge = last;
                 continue;
             }
-            // Tax / VAT / GST line. Checked before TOTAL so "total" keyword lines
-            // don't swallow it, and before SKIP so it's captured (not just ignored).
+            // "VATable sales" / "VAT Sales" base amount (used to compute 12% VAT).
+            // A positive value here is the net on which VAT is charged.
+            if (containsAny(lower, VATABLE_KEYS)) {
+                if (last.signum() > 0) {
+                    vatableSales = last;
+                }
+                continue;
+            }
+            // Explicit VAT / tax / GST amount line (e.g. "VAT (12%) 219.96").
+            // Checked before TOTAL so "total" lines don't swallow it, and before
+            // SKIP so it's captured. Only a positive value overrides.
             if (containsAny(lower, TAX_KEYS)) {
-                tax = last;
+                if (last.signum() > 0) {
+                    tax = last;
+                }
+                continue;
+            }
+            if (containsAny(lower, SUBTOTAL_KEYS)) {
+                subtotal = last;
                 continue;
             }
             if (containsAny(lower, TOTAL_KEYS)) {
@@ -173,6 +200,12 @@ public final class ReceiptTextParser {
                 items.add(item);
             }
         }
+
+        // Only treat this as a VAT receipt (and derive 12% VAT from a VAT-inclusive
+        // subtotal) when the text actually signals VAT — a VAT/TIN marker. This
+        // avoids inventing a tax for non-VAT (e.g. USD) receipts.
+        boolean vatDocument = VAT_MARKER.matcher(rawText).find();
+        tax = resolveVat(tax, vatableSales, subtotal, serviceCharge, total, vatDocument);
 
         return new OcrDtos.ReceiptDraft(storeName, invoiceNumber, items, serviceCharge, tax, total, rawText);
     }
@@ -241,6 +274,38 @@ public final class ReceiptTextParser {
         return s != null
                 && s.chars().filter(Character::isLetter).count() >= 3
                 && !isGenericHeader(s);
+    }
+
+    /**
+     * Resolves the VAT (12%) amount. Prefers an explicitly printed VAT amount;
+     * otherwise computes 12% of the VATable sales; otherwise derives the VAT
+     * embedded in the subtotal (VAT-inclusive). Returns null if nothing usable.
+     */
+    private static BigDecimal resolveVat(BigDecimal explicitTax, BigDecimal vatableSales,
+                                         BigDecimal subtotal, BigDecimal serviceCharge,
+                                         BigDecimal total, boolean vatDocument) {
+        if (explicitTax != null && explicitTax.signum() > 0) {
+            return explicitTax.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (vatableSales != null && vatableSales.signum() > 0) {
+            // VAT = 12% of the VATable base.
+            return vatableSales.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+        }
+        // Derive the VAT baked into a VAT-inclusive subtotal, but only for receipts
+        // that actually declare VAT (base = subtotal / 1.12 ; vat = subtotal - base).
+        if (!vatDocument) {
+            return null;
+        }
+        BigDecimal inclusive = subtotal;
+        if (inclusive == null && total != null) {
+            inclusive = serviceCharge != null ? total.subtract(serviceCharge) : total;
+        }
+        if (inclusive != null && inclusive.signum() > 0) {
+            BigDecimal base = inclusive.divide(VAT_DIVISOR, 2, RoundingMode.HALF_UP);
+            BigDecimal vat = inclusive.subtract(base).setScale(2, RoundingMode.HALF_UP);
+            return vat.signum() > 0 ? vat : null;
+        }
+        return null;
     }
 
     /** True when the line is just a document header (not a store name). */
@@ -319,8 +384,33 @@ public final class ReceiptTextParser {
         return new OcrDtos.ParsedItem(namePart, quantity, unitPrice);
     }
 
+    /**
+     * Collapses OCR spaces inside a money token so "2 , 053. 00" becomes
+     * "2,053.00". Narrowly targets a digit, then a separator surrounded by
+     * optional spaces, then digits — repeated — so ordinary text (dates like
+     * "Sep 07, 2026") is left untouched.
+     */
+    private static String normalizeNumberSpaces(String line) {
+        // Collapse spaces that sit next to a separator which is itself between
+        // digit groups, e.g. "2 , 053. 00" -> "2,053.00". The separator must have
+        // a digit before it (ignoring spaces) AND digits after it (ignoring
+        // spaces), so dates like "Sep 07, 2026" (space only AFTER the comma, text
+        // before) and plain text are left untouched. Applied repeatedly to catch
+        // multiple separators in one number.
+        String prev;
+        String s = line;
+        do {
+            prev = s;
+            s = s.replaceAll("(\\d)\\s*([.,:])\\s*(\\d)", "$1$2$3");
+        } while (!s.equals(prev));
+        return s;
+    }
+
     /** All money amounts on a line, in order. */
-    private static List<BigDecimal> extractAmounts(String line) {
+    private static List<BigDecimal> extractAmounts(String rawLine) {
+        // Don't fuse number-spaces on date/identifier lines (e.g. "Sep 07, 2026");
+        // their digits are not amounts and fusing them creates false matches.
+        String line = isIdentifierLine(rawLine) ? rawLine : normalizeNumberSpaces(rawLine);
         List<BigDecimal> out = new ArrayList<>();
         Matcher m = MONEY.matcher(line);
         while (m.find()) {
