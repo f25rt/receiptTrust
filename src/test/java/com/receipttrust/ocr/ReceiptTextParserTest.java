@@ -176,6 +176,64 @@ class ReceiptTextParserTest {
     }
 
     @Test
+    void parsesRealSachiRamenOcrText() {
+        // The ACTUAL OCR output (tabs, glued store/TIN line, "DRD" and "080,00"
+        // OCR slips, "2:155,65" mangled total, address + CREDIT lines).
+        String raw = "VAT REGISTERED TIN: 480-971-696-002\tSACHI BEST RAMEN CORP.\t\r\n"
+                + "U-L408 4F AYALA CENTER CEBU, CERU\tBUSINESS PARK, BARRIO LUZ\t\r\n"
+                + "CEBU CITY\t\r\n"
+                + "Permit:FP062024-081-0452742-00002\t\r\n"
+                + "POS S/N:1000104650082\t\r\n"
+                + "MIN:24061815181852865\t\r\n"
+                + "PTU issued: 06/25/2024\t\r\n"
+                + "--SERVICE INVOICE--\t\r\n"
+                + "Oct 8 2026 (Thu)\t1:28 PM\t\r\n"
+                + "TM#0011\tINV#047135\t\r\n"
+                + "*** REPRINT ***\t\r\n"
+                + "NOUKDU KOTERI (DINE IN)\t455.00V\t\r\n"
+                + "TANTANMEN (DINE IN)\t445.00V\t\r\n"
+                + "TAKOYAKI CHEESE (DINE IN)\t165.00V\t\r\n"
+                + "CHICKEN KARAAGE (DINE IN)\t252.00V\t\r\n"
+                + "TONKOTSU CHASHUMEN (DINE IN)\t496.00V\t\r\n"
+                + "COKE ZERO (330 ML)\t240.00V\t\r\n"
+                + "3 DRD x 080,00\t\r\n"
+                + "SUBTOTAL\t2 , 053. 00\t\r\n"
+                + "SERVICE CHARGE\t102.65\t\r\n"
+                + "TOTAL\t2:155,65\t\r\n"
+                + "CREDIT\t2,155.65\t\r\n"
+                + "1,833.04\t\r\n"
+                + "VAT Sales\t0.00\t\r\n";
+
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(raw);
+
+        // Store name is the company line, not "CEBU CITY" or the address.
+        assertThat(draft.storeName()).isEqualTo("SACHI BEST RAMEN CORP.");
+        assertThat(draft.invoiceNumber()).isEqualTo("047135");
+        assertThat(draft.serviceCharge()).isEqualByComparingTo("102.65");
+        // Mangled "2:155,65" is normalized to 2155.65.
+        assertThat(draft.total()).isEqualByComparingTo("2155.65");
+
+        // Exactly the 6 real menu items — no address, no "DRD", no CREDIT.
+        assertThat(draft.items()).hasSize(6);
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.name().toUpperCase()).contains("AYALA"));
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.name().toUpperCase()).contains("DRD"));
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.name().toUpperCase()).contains("CREDIT"));
+
+        assertThat(draft.items().get(0).name()).contains("NOUKDU");
+        assertThat(draft.items().get(0).unitPrice()).isEqualByComparingTo("455.00");
+
+        // COKE ZERO refined by "3 DRD x 080,00" -> qty 3 @ 80.00.
+        assertThat(draft.items()).anySatisfy(it -> {
+            assertThat(it.name()).contains("COKE ZERO");
+            assertThat(it.quantity()).isEqualTo(3);
+            assertThat(it.unitPrice()).isEqualByComparingTo("80.00");
+        });
+    }
+
+    @Test
     void handlesVatSuffixedAmountsAndOrderMultiplierSubline() {
         // "Sachi Best Ramen" style: amounts suffixed with "V" (VAT), "(DINE IN)"
         // item suffixes, and a "3 ORD x @80.00" multiplier line under COKE ZERO.

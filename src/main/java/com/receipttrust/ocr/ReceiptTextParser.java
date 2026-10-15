@@ -25,7 +25,9 @@ public final class ReceiptTextParser {
     //   comma-decimal: 308,00  1.234,50  (common from some OCR engines/locales)
     // Group 1 = the whole numeric token incl. separators; the decimal part is the
     // last 2 digits after the final separator (resolved in parseMoney()).
-    private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:[.,]\\d{3})*[.,]\\d{2}|\\d+[.,]\\d{2})");
+    // Allows ':' as a grouping separator too, since OCR sometimes reads a comma
+    // thousands-separator as a colon (e.g. "2:155,65" -> 2155.65).
+    private static final Pattern MONEY = Pattern.compile("\\$?\\s*(\\d{1,3}(?:[.,:]\\d{3})*[.,]\\d{2}|\\d+[.,]\\d{2})");
     // A bare integer amount (no cents), e.g. "220". Bounded by word edges so it
     // isn't a fragment of a longer number. Used only for receipts that print
     // whole-number prices (common for peso receipts).
@@ -59,7 +61,23 @@ public final class ReceiptTextParser {
             "mastercard", "balance", "tender", "amount tendered", "auth", "approval",
             "thank", "receipt", "invoice", "order", "table", "server", "cashier",
             "date", "time", "tel", "phone", "www", "http", "discount", "payment",
-            "qty", "item description", "price", "amount");
+            "qty", "item description", "price", "amount",
+            // Payment/summary and store-metadata lines that must not be items.
+            "credit", "debit", "gcash", "maya", "e-wallet", "ref no", "permit",
+            "pos s/n", "s/n", "min:", "ptu", "service invoice", "reprint",
+            "vat sales", "vatable", "vat-exempt", "zero-rated", "vat exempt");
+
+    // Address/location markers: a line with these is a store address, not an item.
+    private static final Pattern ADDRESS_LINE = Pattern.compile(
+            "\\b(unit|u-l|bldg|building|floor|f\\b|st\\.|street|ave|avenue|blvd|road|rd\\.|"
+                    + "brgy|barrio|city|park|center|centre|cor\\b|corner|phase|block|lot)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    // Business-entity suffixes that strongly indicate a store/company name line.
+    private static final Pattern BUSINESS_SUFFIX = Pattern.compile(
+            "\\b(corp|corporation|inc|incorporated|llc|ltd|co|company|enterprises?|"
+                    + "restaurant|cafe|coffee|store|mart|shop|foods?|group)\\b\\.?",
+            Pattern.CASE_INSENSITIVE);
 
     // Generic document headers that are NOT the store name (common at the top).
     private static final List<String> GENERIC_HEADERS = List.of(
@@ -70,8 +88,12 @@ public final class ReceiptTextParser {
     // Order-multiplier sub-line printed under an item, e.g. "3 ORD x @80.00" or
     // "2 x @ 150.00" — it means the item above is qty N at unit price P. Captured
     // so it refines the previous item instead of becoming a junk item of its own.
+    // Matches lines like "3 ORD x @80.00", "3 DRD x 080,00" (OCR misreads ORD->DRD
+    // and @->0), "2 x 150.00", "2 pcs @ 75". The leading count, an optional
+    // ord/pc/x token, an optional '@' (often OCR'd as a leading 0), then the unit
+    // price. The unit price keeps only its last 2 digits as decimals in parseMoney.
     private static final Pattern ORDER_MULTIPLIER = Pattern.compile(
-            "^\\s*(\\d{1,3})\\s*(?:ord|orders?|pc|pcs|x)?\\s*x?\\s*@\\s*(\\d+(?:[.,]\\d{2})?)\\s*$",
+            "^\\s*(\\d{1,3})\\s*(?:ord|ords|drd|orders?|pc|pcs|x)\\b[\\sx@0]*?(\\d{1,4}[.,]\\d{2})\\s*$",
             Pattern.CASE_INSENSITIVE);
 
     private ReceiptTextParser() {
@@ -140,6 +162,11 @@ public final class ReceiptTextParser {
             if (containsAny(lower, SKIP_KEYS)) {
                 continue;
             }
+            // Store address lines (which often carry unit/floor numbers that look
+            // like prices) are not items.
+            if (ADDRESS_LINE.matcher(line).find()) {
+                continue;
+            }
 
             OcrDtos.ParsedItem item = toItem(line, amounts);
             if (item != null) {
@@ -166,9 +193,23 @@ public final class ReceiptTextParser {
     }
 
     private static String detectStoreName(List<String> lines) {
-        // Preferred: a summary line like "SUNBURST  10 item(s)  7:05 PM" carries
-        // the store name as the leading text before the item count. This is the
-        // most reliable signal on receipts whose top is a generic "BILL" header.
+        // Strongest signal: a segment with a business suffix (CORP/INC/CAFE/...),
+        // even when OCR glued it onto another line via a tab (e.g.
+        // "VAT REGISTERED TIN: ...\tSACHI BEST RAMEN CORP."). Check tab/2+-space
+        // segments of the first several lines.
+        for (String line : lines.subList(0, Math.min(lines.size(), 6))) {
+            for (String seg : line.split("\\t|\\s{2,}")) {
+                String s = seg.strip();
+                if (BUSINESS_SUFFIX.matcher(s).find()
+                        && isPlausibleStoreName(s)
+                        && extractAmounts(s).isEmpty()
+                        && !ADDRESS_LINE.matcher(s).find()) {
+                    return s;
+                }
+            }
+        }
+        // Next: a summary line like "SUNBURST  10 item(s)  7:05 PM" carries the
+        // store name as the leading text before the item count.
         for (String line : lines) {
             Matcher m = ITEM_COUNT.matcher(line);
             if (m.find()) {
@@ -179,13 +220,13 @@ public final class ReceiptTextParser {
             }
         }
         // Otherwise: a clean header line near the top — real text, no amounts, not
-        // a generic header or a known non-store keyword, and not an item line
-        // (an item line has a trailing amount, which the amount check rejects).
+        // a generic header, address, or a known non-store keyword.
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.ROOT);
             if (isPlausibleStoreName(line)
                     && extractAmounts(line).isEmpty()
                     && !containsAny(lower, SKIP_KEYS)
+                    && !ADDRESS_LINE.matcher(line).find()
                     && !ITEM_COUNT.matcher(line).find()
                     && !lower.matches(".*\\d{3,}.*")) {
                 return line;
@@ -334,7 +375,7 @@ public final class ReceiptTextParser {
                 return null;
             }
         }
-        String intPart = t.substring(0, decimalPos).replaceAll("[.,]", "");
+        String intPart = t.substring(0, decimalPos).replaceAll("[.,:]", "");
         String fracPart = t.substring(decimalPos + 1);
         try {
             return new BigDecimal(intPart + "." + fracPart);
