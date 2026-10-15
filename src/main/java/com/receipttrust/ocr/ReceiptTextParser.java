@@ -67,6 +67,12 @@ public final class ReceiptTextParser {
             "order", "order slip", "tax invoice", "customer copy");
     // "10 item(s)" summary line (the store name often precedes it on the same line).
     private static final Pattern ITEM_COUNT = Pattern.compile("\\d+\\s*item", Pattern.CASE_INSENSITIVE);
+    // Order-multiplier sub-line printed under an item, e.g. "3 ORD x @80.00" or
+    // "2 x @ 150.00" — it means the item above is qty N at unit price P. Captured
+    // so it refines the previous item instead of becoming a junk item of its own.
+    private static final Pattern ORDER_MULTIPLIER = Pattern.compile(
+            "^\\s*(\\d{1,3})\\s*(?:ord|orders?|pc|pcs|x)?\\s*x?\\s*@\\s*(\\d+(?:[.,]\\d{2})?)\\s*$",
+            Pattern.CASE_INSENSITIVE);
 
     private ReceiptTextParser() {
     }
@@ -93,6 +99,22 @@ public final class ReceiptTextParser {
 
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.ROOT);
+
+            // Order-multiplier sub-line ("3 ORD x @80.00"): refine the previous
+            // item with its real quantity and unit price instead of creating a
+            // bogus item. The item's line total above is kept as the source of truth.
+            Matcher mult = ORDER_MULTIPLIER.matcher(line);
+            if (mult.matches() && !items.isEmpty()) {
+                int qty = Integer.parseInt(mult.group(1));
+                BigDecimal unit = parseMoney(mult.group(2));
+                if (qty >= 1 && unit != null && unit.signum() > 0) {
+                    OcrDtos.ParsedItem prev = items.get(items.size() - 1);
+                    items.set(items.size() - 1,
+                            new OcrDtos.ParsedItem(prev.name(), qty, unit));
+                }
+                continue;
+            }
+
             List<BigDecimal> amounts = extractAmounts(line);
             if (amounts.isEmpty()) {
                 continue;

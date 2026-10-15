@@ -176,6 +176,51 @@ class ReceiptTextParserTest {
     }
 
     @Test
+    void handlesVatSuffixedAmountsAndOrderMultiplierSubline() {
+        // "Sachi Best Ramen" style: amounts suffixed with "V" (VAT), "(DINE IN)"
+        // item suffixes, and a "3 ORD x @80.00" multiplier line under COKE ZERO.
+        String text = String.join("\n",
+                "SACHI BEST RAMEN CORP.",
+                "VAT REGISTERED TIN: 480-971-696-002",
+                "Oct 8 2026 (Thu)            1:28 PM",
+                "TM#0011                     INV#047135",
+                "*** REPRINT ***",
+                "NOUKDU KOTERI (DINE IN)       455.00V",
+                "TANTANMEN (DINE IN)           445.00V",
+                "TAKOYAKI CHEESE (DINE IN)     165.00V",
+                "CHICKEN KARAAGE (DINE IN)     252.00V",
+                "TONKOTSU CHASHUMEN (DINE IN)  496.00V",
+                "COKE ZERO (330 ML)            240.00V",
+                "3 ORD x @80.00",
+                "SUBTOTAL                    2,053.00",
+                "SERVICE CHARGE                102.65",
+                "TOTAL                       2,155.65");
+
+        OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(text);
+
+        assertThat(draft.storeName()).isEqualTo("SACHI BEST RAMEN CORP.");
+        assertThat(draft.invoiceNumber()).isEqualTo("047135");
+        assertThat(draft.serviceCharge()).isEqualByComparingTo("102.65");
+        assertThat(draft.total()).isEqualByComparingTo("2155.65");
+
+        // Six real items; the "3 ORD x @80.00" line must NOT be a separate item.
+        assertThat(draft.items()).hasSize(6);
+        assertThat(draft.items()).noneSatisfy(it ->
+                assertThat(it.name().toLowerCase()).contains("ord"));
+
+        // Trailing "V" doesn't corrupt the amount.
+        assertThat(draft.items().get(0).name()).contains("NOUKDU");
+        assertThat(draft.items().get(0).unitPrice()).isEqualByComparingTo("455.00");
+
+        // COKE ZERO refined by the multiplier: qty 3 @ 80.00.
+        assertThat(draft.items()).anySatisfy(it -> {
+            assertThat(it.name()).contains("COKE ZERO");
+            assertThat(it.quantity()).isEqualTo(3);
+            assertThat(it.unitPrice()).isEqualByComparingTo("80.00");
+        });
+    }
+
+    @Test
     void capturesTaxAndServiceChargeSeparately() {
         OcrDtos.ReceiptDraft draft = ReceiptTextParser.parse(String.join("\n",
                 "The Daily Bite",
