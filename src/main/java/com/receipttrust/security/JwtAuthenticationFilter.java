@@ -57,7 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else if (user.isPresent()) {
                     User u = user.get();
                     AuthenticatedUser principal =
-                            new AuthenticatedUser(u.getId(), u.getUsername());
+                            new AuthenticatedUser(u.getId(), u.getUsername(), u.isAdmin());
                     var authentication = new UsernamePasswordAuthenticationToken(
                             principal, null, principal.getAuthorities());
                     authentication.setDetails(

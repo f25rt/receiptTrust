@@ -37,6 +37,20 @@ public final class ApiExceptions {
         }
     }
 
+    /** 429 — carries how long the client should wait before retrying. */
+    public static class TooManyRequestsException extends RuntimeException {
+        private final long retryAfterSeconds;
+
+        public TooManyRequestsException(String message, long retryAfterSeconds) {
+            super(message);
+            this.retryAfterSeconds = retryAfterSeconds;
+        }
+
+        public long getRetryAfterSeconds() {
+            return retryAfterSeconds;
+        }
+    }
+
     /** 413 */
     public static class PayloadTooLargeException extends RuntimeException {
         public PayloadTooLargeException(String message) {

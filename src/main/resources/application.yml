@@ -29,6 +29,9 @@ server:
     include-message: always
 
 receipttrust:
+  rate-limit:
+    # Throttles login/register/refresh per IP and failed logins per username.
+    enabled: ${RATE_LIMIT_ENABLED:true}
   security:
     jwt:
       # Base64-encoded HMAC-SHA256 secret. OVERRIDE in production via JWT_SECRET.

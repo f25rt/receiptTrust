@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { API_BASE, tokenStore } from '../api/client';
+import { api, API_BASE, tokenStore } from '../api/client';
 
 /**
  * SSE event names pushed by the backend. The hook re-dispatches each as a
@@ -15,31 +15,61 @@ export const rtEventName = (e: RtEvent) => `rt:${e}`;
  * Opens a single Server-Sent Events connection to the backend while mounted
  * (typically once, high in the tree). Incoming server events are re-dispatched
  * as window events ("rt:notification", "rt:message", "rt:assignment") that
- * feature areas subscribe to. EventSource reconnects automatically; this hook
- * also rebuilds the connection if the access token changes.
+ * feature areas subscribe to. Reconnects (with backoff) are handled here, each
+ * using a freshly minted single-use stream ticket.
  */
 export function useRealtime(enabled: boolean) {
   useEffect(() => {
-    if (!enabled) return;
-    const token = tokenStore.access;
-    if (!token) return;
+    if (!enabled || !tokenStore.access) return;
 
-    const url = `${API_BASE}/stream?token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryMs = 2000;
+    let stopped = false;
 
-    const handlers: Array<[string, EventListener]> = [];
-    for (const name of RT_EVENTS) {
-      const handler: EventListener = (ev) => {
-        const data = (ev as MessageEvent).data as string;
-        window.dispatchEvent(new CustomEvent(rtEventName(name), { detail: data }));
+    // The stream URL carries a short-lived, single-use ticket (not the access
+    // token), so it's safe if it lands in a log. Tickets are consumed on use, so
+    // every (re)connect must mint a new one — EventSource's own auto-retry would
+    // replay the spent ticket and be rejected, hence we manage reconnects here.
+    const connect = async () => {
+      if (stopped) return;
+      try {
+        const { data } = await api.post<{ ticket: string }>('/stream-ticket');
+        if (stopped) return;
+        es = new EventSource(`${API_BASE}/stream?ticket=${encodeURIComponent(data.ticket)}`);
+      } catch {
+        scheduleRetry();
+        return;
+      }
+
+      for (const name of RT_EVENTS) {
+        es.addEventListener(name, (ev) => {
+          const detail = (ev as MessageEvent).data as string;
+          window.dispatchEvent(new CustomEvent(rtEventName(name), { detail }));
+        });
+      }
+      es.onopen = () => {
+        retryMs = 2000; // healthy connection: reset the backoff
       };
-      es.addEventListener(name, handler);
-      handlers.push([name, handler]);
-    }
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        scheduleRetry();
+      };
+    };
+
+    const scheduleRetry = () => {
+      if (stopped) return;
+      retryTimer = setTimeout(connect, retryMs);
+      retryMs = Math.min(retryMs * 2, 30000);
+    };
+
+    connect();
 
     return () => {
-      handlers.forEach(([name, h]) => es.removeEventListener(name, h));
-      es.close();
+      stopped = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      es?.close();
     };
   }, [enabled]);
 }

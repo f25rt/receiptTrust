@@ -43,6 +43,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(ApiExceptions.TooManyRequestsException.class)
+    public ResponseEntity<ApiError> handleTooManyRequests(ApiExceptions.TooManyRequestsException ex,
+                                                          HttpServletRequest req) {
+        ApiError body = ApiError.of(HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(), ex.getMessage(), req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(body);
+    }
+
     @ExceptionHandler({ApiExceptions.PayloadTooLargeException.class, MaxUploadSizeExceededException.class})
     public ResponseEntity<ApiError> handleTooLarge(Exception ex, HttpServletRequest req) {
         return build(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file is too large", req);

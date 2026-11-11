@@ -86,16 +86,35 @@ public class SecurityConfig {
                         // Country list is public so the registration form can show it.
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tax-settings/countries")
                         .permitAll()
-                        // SSE stream authenticates via a token query param (EventSource
-                        // can't send an Authorization header), so it's permitted here
-                        // and validated inside the controller.
-                        .requestMatchers("/api/stream")
+                        // SSE stream can't send an Authorization header (EventSource), so it
+                        // is permitted here and authorized inside the controller by a
+                        // short-lived single-use ticket from POST /api/stream-ticket.
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/stream")
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**")
                         .permitAll()
+                        // Admin-only areas, enforced at the URL level (the services
+                        // also re-check the role as a second layer). The role is read
+                        // from the database on each request, so changes apply at once.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/tax-settings/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/tax-settings/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/tax-settings/**")
+                        .hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        // Signed in but lacking the role (e.g. a non-admin on /api/admin):
+                        // answer 403 directly. The default handler uses sendError(), which
+                        // re-dispatches to /error without credentials and surfaces as 401.
+                        .accessDeniedHandler((request, response, denied) -> {
+                            response.setStatus(HttpStatus.FORBIDDEN.value());
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\","
+                                    + "\"message\":\"Access denied\"}");
+                        }))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

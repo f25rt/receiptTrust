@@ -12,17 +12,23 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
+/**
+ * A refresh token as stored in the database. Only the SHA-256 hash of the token
+ * is persisted, never the token itself, so a database leak does not yield usable
+ * credentials. The raw token exists only in the response to the client.
+ */
 @Entity
 @Table(name = "refresh_tokens", uniqueConstraints =
-        @UniqueConstraint(name = "uq_refresh_tokens_token", columnNames = "token"))
+        @UniqueConstraint(name = "uq_refresh_tokens_token", columnNames = "token_hash"))
 public class RefreshToken extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 512)
-    private String token;
+    /** Hex-encoded SHA-256 of the raw refresh token. */
+    @Column(name = "token_hash", nullable = false, length = 512)
+    private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
@@ -33,9 +39,9 @@ public class RefreshToken extends BaseEntity {
     protected RefreshToken() {
     }
 
-    public RefreshToken(User user, String token, Instant expiresAt) {
+    public RefreshToken(User user, String tokenHash, Instant expiresAt) {
         this.user = user;
-        this.token = token;
+        this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
         this.revoked = false;
     }
@@ -48,8 +54,8 @@ public class RefreshToken extends BaseEntity {
         return user;
     }
 
-    public String getToken() {
-        return token;
+    public String getTokenHash() {
+        return tokenHash;
     }
 
     public Instant getExpiresAt() {

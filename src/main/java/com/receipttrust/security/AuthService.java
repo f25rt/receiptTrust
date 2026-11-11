@@ -20,13 +20,16 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final TrustProperties trustProperties;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        RefreshTokenService refreshTokenService,
                        TrustProperties trustProperties,
-                       GoogleTokenVerifier googleTokenVerifier) {
+                       GoogleTokenVerifier googleTokenVerifier,
+                       LoginAttemptLimiter loginAttemptLimiter) {
+        this.loginAttemptLimiter = loginAttemptLimiter;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -58,8 +61,12 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.TokenResponse login(AuthDtos.LoginRequest request) {
+        // Per-account brute-force guard: reject before doing any lookup/hashing.
+        loginAttemptLimiter.check(request.username());
+
         User user = userRepository.findByUsername(request.username()).orElse(null);
         if (user == null) {
+            loginAttemptLimiter.recordFailure(request.username());
             throw new ApiExceptions.AuthenticationFailure();
         }
         // Social accounts without a local password can only sign in via their provider.
@@ -68,8 +75,10 @@ public class AuthService {
         }
         // Generic failure; do not reveal which field was wrong.
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            loginAttemptLimiter.recordFailure(request.username());
             throw new ApiExceptions.AuthenticationFailure();
         }
+        loginAttemptLimiter.reset(request.username());
         if (user.isLocked()) {
             throw new ApiExceptions.ForbiddenException(
                     "This account has been locked. Please contact support.");
@@ -180,7 +189,7 @@ public class AuthService {
 
         String access = jwtService.generateAccessToken(
                 user.getId(), user.getUsername(), user.getSessionVersion());
-        RefreshToken refresh = refreshTokenService.issue(user);
-        return new AuthDtos.TokenResponse(access, refresh.getToken());
+        RefreshTokenService.IssuedToken refresh = refreshTokenService.issue(user);
+        return new AuthDtos.TokenResponse(access, refresh.rawToken());
     }
 }
